@@ -1,0 +1,470 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------------------
+// Atlas — Firestore Security Rules
+//
+// Threat model: these rules are the SECOND line of defence. Even a total
+// bypass yields only AES-256-GCM ciphertext. Their job is to prevent quota
+// exhaustion, spam writes, and casual interference — not to protect
+// confidentiality. That is the encryption layer's job, exclusively.
+//
+// Principles:
+//   1. Default deny. Anything not matched below is refused.
+//   2. Only a signed-in client occupying one of the room's two device slots
+//      may read or write.
+//   3. Messages are immutable once written, except `readAt`, which only the
+//      non-sender may set, and only once.
+//   4. Every write is shape-validated: exact key sets, types, and hard byte
+//      caps, so a compromised client cannot inflate storage costs.
+//   5. `expiresAt` must equal `createdAt + 24h`. Clients cannot opt out of
+//      retention, and expired documents cannot be read.
+// ---------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- helpers ---------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function now() {
+      return request.time.toMillis();
+    }
+
+    function roomData(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    // A single get(), cached for the duration of the request evaluation.
+    function isPaired(roomId) {
+      return signedIn()
+        && (roomData(roomId).deviceA == uid() || roomData(roomId).deviceB == uid());
+    }
+
+    // Which slot the caller currently occupies, derived from the room document
+    // rather than from anything the caller sends. Returns '' when unpaired,
+    // which matches no field name and so grants nothing.
+    function mySlot(roomId) {
+      return roomData(roomId).deviceA == uid()
+        ? 'a'
+        : (roomData(roomId).deviceB == uid() ? 'b' : '');
+    }
+
+    // Base64url only. Rejects padding, whitespace, and anything that could be
+    // smuggled into a path or rendered as markup.
+    function isB64(value, maxLen) {
+      return value is string
+        && value.size() > 0
+        && value.size() <= maxLen
+        && value.matches('^[A-Za-z0-9_-]+$');
+    }
+
+    // { v: 1, iv: <12 bytes b64 = 16 chars>, ct: <ciphertext> }
+    function validEnvelope(e, maxCt) {
+      return e is map
+        && e.keys().hasOnly(['v', 'iv', 'ct'])
+        && e.keys().hasAll(['v', 'iv', 'ct'])
+        && e.v == 1
+        && isB64(e.iv, 24)
+        && isB64(e.ct, maxCt);
+    }
+
+    // 24h retention, enforced server-side. ±60s tolerance for clock skew.
+    function validRetention(data) {
+      return data.createdAt is int
+        && data.expiresAt is int
+        && data.createdAt >= now() - 60000
+        && data.createdAt <= now() + 60000
+        && data.expiresAt == data.createdAt + 86400000;
+    }
+
+    function notExpired(data) {
+      return data.expiresAt > now();
+    }
+
+    // --- room ------------------------------------------------------------
+    //
+    // The room document holds the two device slots. Making them fields rather
+    // than a collection means the "exactly two devices" cap is structural —
+    // there is no third field to write.
+
+    match /rooms/{roomId} {
+
+      // Readable by any signed-in client, because a client must read the slots
+      // to discover whether it is paired. The document contains no secrets.
+      allow get: if signedIn();
+      allow list: if false;
+
+      // First device to arrive creates the room and claims slot A.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(
+             ['schemaVersion', 'createdAt', 'deviceA', 'deviceB', 'repairUntil'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.createdAt >= now() - 60000
+        && request.resource.data.deviceA == uid()
+        && request.resource.data.deviceB == null
+        && request.resource.data.repairUntil == 0;
+
+      // Slot transitions. A slot may be:
+      //   - left unchanged
+      //   - claimed, if currently empty
+      //   - released, by its own occupant
+      //   - taken over, but only during a re-pair window that an already-paired
+      //     device opened (see repairUntil below)
+      function slotOk(oldSlot, newSlot) {
+        return newSlot == oldSlot
+          || (oldSlot == null && newSlot == uid())
+          || (oldSlot == uid() && newSlot == null)
+          || (resource.data.repairUntil > now() && newSlot == uid());
+      }
+
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['deviceA', 'deviceB', 'repairUntil'])
+        && slotOk(resource.data.deviceA, request.resource.data.deviceA)
+        && slotOk(resource.data.deviceB, request.resource.data.deviceB)
+        // Never let one uid hold both slots.
+        && (request.resource.data.deviceA == null
+            || request.resource.data.deviceA != request.resource.data.deviceB)
+        // Only an already-paired device may open a re-pair window, and it may
+        // open it for at most 5 minutes.
+        && (request.resource.data.repairUntil == resource.data.repairUntil
+            || (isPaired(roomId)
+                && request.resource.data.repairUntil <= now() + 300000));
+
+      // Recovering from losing both devices is a console operation, on
+      // purpose. There is no client-side path to wiping the pairing state.
+      allow delete: if false;
+
+      // --- kdf params ----------------------------------------------------
+      //
+      // The PBKDF2 salt and the key verifier. Public, non-secret, and written
+      // exactly once when the room is first set up. Immutable thereafter:
+      // changing the salt would orphan every existing message.
+
+      match /meta/kdf {
+        allow get: if signedIn();
+
+        allow create: if isPaired(roomId)
+          && request.resource.data.keys().hasOnly(
+               ['v', 'algorithm', 'hash', 'iterations', 'salt', 'verifier', 'createdAt'])
+          && request.resource.data.v == 1
+          && request.resource.data.algorithm == 'PBKDF2'
+          && request.resource.data.hash == 'SHA-256'
+          && request.resource.data.iterations >= 600000
+          && request.resource.data.iterations <= 5000000
+          && isB64(request.resource.data.salt, 32)
+          && validEnvelope(request.resource.data.verifier, 128)
+          && request.resource.data.createdAt >= now() - 60000;
+
+        allow update, delete: if false;
+      }
+
+      match /meta/{other} {
+        allow read, write: if false;
+      }
+
+      // --- presence ------------------------------------------------------
+      //
+      // Heartbeat + typing. Each client owns exactly one slot document and
+      // may only write its own. Deliberately coarse: no per-keystroke data.
+
+      match /presence/{slot} {
+        allow get, list: if isPaired(roomId) && (slot == 'a' || slot == 'b');
+
+        // Write access is tied to whoever currently holds that slot in the
+        // ROOM document — not to whoever wrote the presence document first.
+        //
+        // The earlier version pinned ownership to the existing presence doc's
+        // `owner` field, which meant a device that legitimately took over a
+        // slot (after a re-pair, or after the room doc was edited) could never
+        // write presence again. Its heartbeats were rejected forever, and
+        // because presence errors are deliberately swallowed, the only symptom
+        // was "last seen" freezing at a stale time.
+        //
+        // Deriving permission from the room document instead makes this
+        // self-healing: claim the slot, and presence starts working.
+        allow create, update: if isPaired(roomId)
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'online', 'lastSeen', 'typingUntil'])
+          && request.resource.data.owner == uid()
+          && ((slot == 'a' && roomData(roomId).deviceA == uid())
+              || (slot == 'b' && roomData(roomId).deviceB == uid()))
+          && request.resource.data.online is bool
+          && request.resource.data.lastSeen >= now() - 60000
+          && request.resource.data.lastSeen <= now() + 60000
+          // Typing indicator is self-expiring and capped, so a buggy or
+          // malicious client cannot pin it on indefinitely.
+          && request.resource.data.typingUntil is int
+          && request.resource.data.typingUntil <= now() + 15000;
+
+        allow delete: if false;
+      }
+
+      // --- messages ------------------------------------------------------
+
+      match /messages/{messageId} {
+
+        // Direct reads refuse expired documents outright.
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+
+        // Queries deliberately do NOT check expiry, and the reason matters.
+        //
+        // A live listener's range filter is fixed at subscription time, so a
+        // document that expires while the listener is open still matches the
+        // query. If the rule then rejected it, Firestore would tear down the
+        // whole listener — a tab left open overnight would silently stop
+        // receiving messages. Correctness of the live stream wins here.
+        //
+        // What this concedes: a paired device can list expired-but-not-yet
+        // swept documents. That leaks nothing — the same device could read
+        // those messages before they expired, and they remain AES-256-GCM
+        // ciphertext regardless. Only paired devices can list at all.
+        //
+        // The client filters expired documents out of the UI, and the sweep
+        // below deletes them.
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && request.resource.data.keys().hasOnly(
+               ['sender', 'createdAt', 'expiresAt', 'body'])
+          && request.resource.data.sender in ['a', 'b']
+          // The sender field must match the slot this uid actually holds.
+          && ((request.resource.data.sender == 'a' && roomData(roomId).deviceA == uid())
+              || (request.resource.data.sender == 'b' && roomData(roomId).deviceB == uid()))
+          && validRetention(request.resource.data)
+          // ~12 KB ciphertext ceiling. Text is padded to at most 4096 bytes
+          // before encryption; image messages carry only a wrapped key and a
+          // small blur preview, never the image itself.
+          && validEnvelope(request.resource.data.body, 16384);
+
+        // Immutable, except that the recipient may stamp readAt exactly once.
+        allow update: if isPaired(roomId)
+          && notExpired(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && !('readAt' in resource.data)
+          && request.resource.data.readAt >= now() - 60000
+          && request.resource.data.readAt <= now() + 60000
+          // Only the party who did NOT send it can mark it read.
+          && ((resource.data.sender == 'a' && roomData(roomId).deviceB == uid())
+              || (resource.data.sender == 'b' && roomData(roomId).deviceA == uid()));
+
+        // Reactions — the one place a device may write to a message it did
+        // not send.
+        //
+        // The constraint that makes that safe: each participant owns exactly
+        // one key in the `reactions` map, named for their slot, and may touch
+        // only that key. Without this, "allow reactions" would be "allow
+        // arbitrary edits to your peer's messages" — the sender could rewrite
+        // ciphertext under a message the recipient has already read.
+        //
+        // The value is an encrypted envelope, not a plain emoji. A reaction is
+        // content: "reacted 😭 to that message" is exactly what the rest of
+        // the app refuses to leak.
+        allow update: if isPaired(roomId)
+          && notExpired(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+          && request.resource.data.get('reactions', {})
+               .diff(resource.data.get('reactions', {}))
+               .affectedKeys()
+               .hasOnly([mySlot(roomId)])
+          // Either set to a valid envelope, or removed entirely.
+          && (!(mySlot(roomId) in request.resource.data.get('reactions', {}))
+              || validEnvelope(request.resource.data.reactions[mySlot(roomId)], 512));
+
+        // Deletes are the retention sweep. Only expired documents may go.
+        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+      }
+
+      // --- images ----------------------------------------------------------
+      //
+      // Encrypted image bytes, one document per image. These live in Firestore
+      // rather than Cloud Storage because Storage requires the paid Blaze plan.
+      //
+      // Firestore caps a document at 1 MiB. The client compresses to ~600 KB
+      // before encrypting; the 1,000,000-character ceiling below is the hard
+      // backstop that keeps a write from being rejected by the platform (and
+      // stops anyone using the collection as free bulk storage).
+      //
+      // Kept in its own collection rather than inline on the message so that
+      // subscribing to the message list does not drag ~800 KB of base64 along
+      // with every snapshot.
+
+      match /images/{imageId} {
+
+        // Images are always fetched by id, never queried, so the strict
+        // expiry check costs nothing here.
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && imageId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'createdAt', 'expiresAt', 'data'])
+          && request.resource.data.owner == uid()
+          && validRetention(request.resource.data)
+          && validEnvelope(request.resource.data.data, 1000000);
+
+        // Write-once. An update would let a writer swap ciphertext under an id
+        // the peer has already accepted.
+        allow update: if false;
+
+        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+      }
+
+      // --- custom emoji ----------------------------------------------------
+      //
+      // The one collection in this app with NO expiry, and that is the whole
+      // point of it. Everything else is swept after 24 hours; an emoji pack
+      // that evaporated daily would be useless. So `emojis` documents carry no
+      // `expiresAt`, and `validRetention` is deliberately not applied.
+      //
+      // Shared rather than per-device: both participants see one pack, like a
+      // Discord server's. Either may add or remove, which is why delete is not
+      // restricted to the owner — a pack only one person can prune is a pack
+      // that fills up with the other person's mistakes.
+      //
+      // The NAME is encrypted, not just the image. `:inside_joke:` is content,
+      // and a shortcode list in the clear would be a readable index of what the
+      // two of you find funny.
+      //
+      // Known limitation: rules cannot cheaply count a collection, so the cap
+      // on how many emoji exist is enforced client-side only. A modified client
+      // could write more. The blast radius is storage quota, not
+      // confidentiality, and it is bounded by the same trust as everything else
+      // here — only a paired device can write at all, and a paired device
+      // already holds the passphrase.
+
+      match /emojis/{emojiId} {
+
+        allow get, list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && emojiId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'createdAt', 'name', 'mime', 'width', 'height', 'data'])
+          && request.resource.data.owner == uid()
+          && request.resource.data.createdAt >= now() - 60000
+          && request.resource.data.createdAt <= now() + 60000
+          && request.resource.data.mime in ['image/webp', 'image/gif']
+          && request.resource.data.width is int
+          && request.resource.data.width > 0
+          && request.resource.data.width <= 512
+          && request.resource.data.height is int
+          && request.resource.data.height > 0
+          && request.resource.data.height <= 512
+          && validEnvelope(request.resource.data.name, 256)
+          // ~256 KB of plaintext, base64-inflated. Comfortably inside the 1 MiB
+          // document cap and far more than a 128px emoji needs, with room for
+          // an animated one.
+          && validEnvelope(request.resource.data.data, 400000);
+
+        // Write-once, like images: an update would let a writer swap the
+        // artwork under a shortcode the other person has already seen and
+        // started using.
+        allow update: if false;
+
+        allow delete: if isPaired(roomId);
+      }
+
+      // --- call signalling -------------------------------------------------
+      //
+      // Short-lived WebRTC handshake state. The `offer` and `answer` fields
+      // are encrypted envelopes, not raw SDP — SDP contains both parties' IP
+      // addresses, so writing it in the clear (as most WebRTC tutorials do)
+      // would tell the database where each person is and exactly when they
+      // spoke. Encrypted, it reveals only that two paired devices exchanged
+      // some ciphertext.
+      //
+      // Unlike messages, call documents are freely deletable: they are
+      // ephemeral handshake residue, and leaving them lying around serves no
+      // one. Both parties need to end a call, so delete is not restricted to
+      // the caller.
+
+      match /calls/{callId} {
+
+        allow read: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && callId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['caller', 'kind', 'state', 'createdAt', 'expiresAt', 'offer'])
+          && request.resource.data.caller in ['a', 'b']
+          && request.resource.data.kind in ['audio', 'video']
+          && request.resource.data.state == 'ringing'
+          && request.resource.data.createdAt >= now() - 60000
+          && request.resource.data.expiresAt == request.resource.data.createdAt + 3600000
+          && validEnvelope(request.resource.data.offer, 32768);
+
+        // Only `state` and `answer` may change. The offer is immutable once
+        // written — swapping it mid-handshake would be a redirection attack.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['state', 'answer'])
+          && request.resource.data.state in ['ringing', 'accepted', 'declined', 'ended']
+          && (!('answer' in request.resource.data)
+              || validEnvelope(request.resource.data.answer, 32768));
+
+        allow delete: if isPaired(roomId);
+
+        // ICE candidates, encrypted. Write-once and small.
+        //
+        // Two explicit matches rather than one `{side}Candidates` wildcard:
+        // Firestore path segments cannot mix a wildcard with literal text, so
+        // `{side}Candidates` is a syntax error rather than a pattern.
+        match /callerCandidates/{candidateId} {
+          allow read: if isPaired(roomId);
+          allow create: if isPaired(roomId)
+            && request.resource.data.keys().hasOnly(['data'])
+            && validEnvelope(request.resource.data.data, 8192);
+          allow update: if false;
+          allow delete: if isPaired(roomId);
+        }
+
+        match /calleeCandidates/{candidateId} {
+          allow read: if isPaired(roomId);
+          allow create: if isPaired(roomId)
+            && request.resource.data.keys().hasOnly(['data'])
+            && validEnvelope(request.resource.data.data, 8192);
+          allow update: if false;
+          allow delete: if isPaired(roomId);
+        }
+      }
+
+      // --- voice messages --------------------------------------------------
+      //
+      // Same shape and same constraints as images. Opus at 24 kbps capped at
+      // 120 seconds lands around 350 KB, well inside the 1 MiB document limit;
+      // the ceiling below is the hard backstop.
+
+      match /audio/{audioId} {
+
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && audioId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'createdAt', 'expiresAt', 'data'])
+          && request.resource.data.owner == uid()
+          && validRetention(request.resource.data)
+          && validEnvelope(request.resource.data.data, 1000000);
+
+        allow update: if false;
+        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+      }
+    }
+
+    // --- default deny ------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

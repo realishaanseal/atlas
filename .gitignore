@@ -1,0 +1,29 @@
+node_modules
+dist
+dist-ssr
+.vite
+*.local
+
+# Never commit real Firebase config or service accounts.
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Firebase project alias — each person deploying this uses their own project.
+# Created locally by `npx firebase-tools use --add`.
+.firebaserc
