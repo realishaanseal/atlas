@@ -1,21 +1,130 @@
-MIT License
+Atlas Non-Commercial Licence
+Version 1.0
 
-Copyright (c) 2026 Ishaan Seal
+Copyright (c) 2026 Ishaan Seal. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software and its source code, documentation, design and assets (together,
+the "Software") are the property of Ishaan Seal (the "Author").
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+ALL RIGHTS ARE RESERVED, EXCEPT THE LIMITED PERMISSIONS EXPRESSLY GRANTED IN
+SECTION 1 BELOW. Any use not expressly permitted is prohibited.
+
+
+1. WHAT YOU MAY DO
+
+Subject to every condition and restriction in this Licence, the Author grants
+you a worldwide, royalty-free, non-exclusive, non-transferable, revocable
+licence to:
+
+  (a) use and run the Software for personal, private, educational, academic or
+      research purposes;
+
+  (b) study and modify the Software for those same purposes; and
+
+  (c) redistribute the Software, or your modified versions of it, free of
+      charge, provided you comply with Section 2 (Conditions) and Section 3
+      (Restrictions).
+
+
+2. CONDITIONS ON REDISTRIBUTION
+
+If you redistribute the Software or any modified version of it, you must:
+
+  (a) give clear and visible credit to the Author, Ishaan Seal, as the original
+      creator, and include a link to the original project where practical;
+
+  (b) include a complete, unmodified copy of this Licence with every copy you
+      distribute;
+
+  (c) retain all copyright, authorship and licence notices in the source, and
+      not misrepresent the origin of the Software or imply that the Author
+      endorses, sponsors or supports your version;
+
+  (d) clearly state that your version has been modified, and describe the
+      changes at a high level, so that no one confuses your version with the
+      original; and
+
+  (e) license your redistributed copy or modified version under this same
+      Licence, with these same terms, so the protections carry forward to
+      everyone downstream.
+
+
+3. RESTRICTIONS — WHAT YOU MAY NOT DO
+
+You may NOT, without the Author's prior written permission:
+
+  (a) sell, rent, lease, license, sublicense or otherwise charge any fee for
+      the Software or any modified version of it, whether on its own or bundled
+      with anything else;
+
+  (b) use the Software, in whole or in part, for any commercial purpose,
+      including within or on behalf of a business, or in any product, service
+      or activity that is intended for or directed toward commercial advantage,
+      monetary compensation or revenue of any kind;
+
+  (c) offer the Software, or any service based on it, to third parties on a
+      paid, subscription, hosted, managed or "software as a service" basis;
+
+  (d) monetise the Software indirectly, including through advertising,
+      sponsorship, paid support, donations tied to access, or paywalled
+      distribution;
+
+  (e) incorporate the Software, or any substantial part of it, into any
+      proprietary or closed-source product;
+
+  (f) remove, obscure or alter any copyright, authorship or licence notice; or
+
+  (g) use the Author's name, likeness or any project branding to promote or
+      endorse any product or service.
+
+For clarity: distributing the Software free of charge, in compliance with
+Section 2, is permitted and is not a "commercial purpose" merely because the
+recipient is a business or uses it at work.
+
+
+4. NO OTHER RIGHTS
+
+No rights are granted other than those expressly stated in Section 1. No
+patent, trademark or other intellectual-property rights are granted, whether by
+implication, estoppel or otherwise. The Author reserves the right to release
+the Software under different terms to anyone at any time.
+
+
+5. COMMERCIAL LICENSING
+
+If you want to use the Software commercially, or in any way this Licence does
+not permit, contact the Author to request a separate written licence. Such
+permission is entirely at the Author's discretion.
+
+
+6. TERMINATION
+
+This Licence and the permissions in Section 1 terminate automatically and
+immediately if you breach any of its terms. On termination you must stop using
+the Software and destroy all copies in your possession or control. Sections 3,
+4, 7 and 8 survive termination.
+
+
+7. NO WARRANTY
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. THE SOFTWARE HAS
+NOT BEEN INDEPENDENTLY SECURITY-AUDITED. YOU USE IT ENTIRELY AT YOUR OWN RISK.
+
+
+8. NO LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE AUTHOR BE LIABLE
+FOR ANY CLAIM, DAMAGES, DATA LOSS, LOSS OF PRIVACY, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+9. THIRD-PARTY COMPONENTS
+
+The Software depends on third-party open-source packages (for example React,
+Vite, Tailwind CSS, the Firebase SDK and lucide-react). Those components remain
+the property of their respective owners and are governed by their own licences,
+which are unaffected by this Licence. This Licence applies only to the Author's
+own code, design and documentation.

@@ -438,8 +438,22 @@ with type `null`.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Use it, fork it, change it; just keep the
-copyright notice.
+**Atlas Non-Commercial Licence** — © 2026 Ishaan Seal. All rights reserved.
+See [LICENSE](LICENSE) for the full terms.
+
+In short:
+
+**You may** — run it, study it, modify it, and share it free of charge, for
+personal, educational or research use. Set up your own instance for you and
+someone you know; that is what it is for.
+
+**You must** — credit Ishaan Seal as the original creator, say clearly if you
+have changed it, include the licence, and pass on these same terms.
+
+**You may not** — sell it, charge for it, use it commercially or inside a
+business, host it as a paid or subscription service, monetise it through ads or
+paywalls, or fold it into a closed-source product. Ask first if you want to do
+any of that.
 
 This software is provided as-is, with no warranty. It has not been
 independently audited. Read the [known limitations](#known-limitations-stated-plainly)

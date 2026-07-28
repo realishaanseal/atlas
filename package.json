@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Atlas — a private, end-to-end encrypted workspace for exactly two people.",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Ishaan Seal",
+  "description": "Atlas \u2014 a private, end-to-end encrypted workspace for exactly two people.",
   "engines": {
     "node": ">=20.19.0"
   },
