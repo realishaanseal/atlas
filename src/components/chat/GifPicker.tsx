@@ -167,7 +167,7 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
       // Near-opaque rather than the usual glass: this panel is full of imagery
       // and sits over message bubbles, and at normal glass opacity the bubbles
       // read through it as ghosting.
-      className="animate-rise absolute bottom-[calc(100%+0.75rem)] right-0 z-30 w-[min(26rem,86vw)]
+      className="animate-scale-in absolute bottom-[calc(100%+0.75rem)] right-0 z-30 w-[min(26rem,86vw)]
                  overflow-hidden rounded-md border border-border bg-surface/97 shadow-lift
                  backdrop-blur-xl"
     >

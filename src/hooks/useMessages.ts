@@ -182,5 +182,107 @@ export function useMessages(key: CryptoKey, slot: ParticipantId) {
     [key, slot],
   );
 
-  return { messages, connection, send, markVisibleRead, react };
+  /**
+   * Applies a whole preset of emoji to a message in one write — the "quick
+   * react" button.
+   *
+   * Additive: the preset is unioned with whatever we have already reacted with,
+   * preset first so it always lands in full, then capped. The cap keeps the
+   * encrypted reaction list under the 512-byte envelope the rules allow (~11
+   * custom references); anything past that is dropped rather than risking a
+   * rejected write.
+   */
+  const bulkReact = useCallback(
+    async (messageId: string, preset: string[]) => {
+      if (preset.length === 0) return;
+      let nextList: string[] = [];
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const current = m.reactions[slot] ?? [];
+          // Cap matches MAX_REACTIONS_PER_PERSON in services/messages, so the
+          // optimistic list equals what the write will store (no flicker).
+          nextList = [...new Set([...preset, ...current])].slice(0, 10);
+          return { ...m, reactions: { ...m.reactions, [slot]: nextList } };
+        }),
+      );
+
+      try {
+        const { react: sendReaction } = await import('@/services/messages');
+        await sendReaction(key, messageId, slot, nextList);
+      } catch {
+        // The next server snapshot corrects the optimistic value.
+      }
+    },
+    [key, slot],
+  );
+
+  /**
+   * Edits our own text message.
+   *
+   * Optimistic: the new text shows immediately, with the original captured on
+   * the first edit so the history is right. A failed write is corrected by the
+   * next snapshot. Only our own text messages are editable; the caller gates
+   * the affordance, and the rules enforce it regardless.
+   */
+  const edit = useCallback(
+    (message: Message, newText: string) => {
+      const trimmed = newText.trim();
+      if (message.payload.kind !== 'text' || message.sender !== slot) return;
+      if (trimmed.length === 0 || trimmed === message.payload.text) return;
+
+      const firstEdit = message.editedAt === undefined;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== message.id || m.payload.kind !== 'text') return m;
+          return {
+            ...m,
+            payload: { ...m.payload, text: trimmed },
+            editedAt: Date.now(),
+            // Capture the pre-edit text as the original, once.
+            ...(firstEdit ? { originalText: m.payload.text } : {}),
+          };
+        }),
+      );
+
+      void (async () => {
+        try {
+          const { editMessage } = await import('@/services/messages');
+          await editMessage(key, message, trimmed);
+        } catch {
+          // The next server snapshot restores the true state.
+        }
+      })();
+    },
+    [key, slot],
+  );
+
+  /** Writes a message dated in the future; delivery no longer needs this device. */
+  const scheduleMessage = useCallback(
+    async (payload: MessagePayload, deliverAt: number) => {
+      const { schedule } = await import('@/services/messages');
+      await schedule(key, payload, slot, deliverAt);
+    },
+    [key, slot],
+  );
+
+  /** Cancels one of our own not-yet-delivered scheduled messages. */
+  const cancelScheduled = useCallback(async (messageId: string) => {
+    const { cancelScheduled: cancel } = await import('@/services/messages');
+    await cancel(messageId);
+  }, []);
+
+  return {
+    messages,
+    connection,
+    send,
+    markVisibleRead,
+    react,
+    bulkReact,
+    edit,
+    scheduleMessage,
+    cancelScheduled,
+  };
 }

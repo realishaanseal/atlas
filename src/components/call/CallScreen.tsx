@@ -10,6 +10,7 @@ import {
   User,
   Volume1,
   Volume2,
+  SwitchCamera,
 } from 'lucide-react';
 import { APP_NAME } from '@/config';
 import type { CallKind } from '@/types';
@@ -23,6 +24,8 @@ interface CallScreenProps {
   error: string | null;
   muted: boolean;
   cameraOff: boolean;
+  peerMuted: boolean;
+  peerCameraOff: boolean;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   onAccept: () => void;
@@ -30,6 +33,8 @@ interface CallScreenProps {
   onHangUp: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
+  onSwitchCamera: () => void;
+  canSwitchCamera: boolean;
   onDismissError: () => void;
 }
 
@@ -66,11 +71,13 @@ function RoundButton({
   label,
   children,
   variant = 'neutral',
+  className,
 }: {
   onClick: () => void;
   label: string;
   children: React.ReactNode;
   variant?: 'neutral' | 'active' | 'danger' | 'accept';
+  className?: string;
 }) {
   return (
     <button
@@ -78,14 +85,15 @@ function RoundButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        'press flex items-center justify-center rounded-full shadow-lift',
+        'press flex items-center justify-center rounded-full shadow-lift transition-colors duration-150',
         variant === 'danger' || variant === 'accept' ? 'size-16' : 'size-14',
         variant === 'neutral' && 'bg-surface-raised text-text hover:bg-surface',
         // Inverted rather than tinted: a "muted" control should read as ON,
         // and inversion survives being glanced at on a dark screen.
-        variant === 'active' && 'bg-text text-bg',
-        variant === 'danger' && 'bg-danger text-white',
-        variant === 'accept' && 'bg-success text-white',
+        variant === 'active' && 'bg-white text-bg-deep',
+        variant === 'danger' && 'bg-danger text-white hover:brightness-110',
+        variant === 'accept' && 'bg-success text-white hover:brightness-110',
+        className,
       )}
     >
       {children}
@@ -197,6 +205,8 @@ export function CallScreen({
   error,
   muted,
   cameraOff,
+  peerMuted,
+  peerCameraOff,
   localStream,
   remoteStream,
   onAccept,
@@ -204,6 +214,8 @@ export function CallScreen({
   onHangUp,
   onToggleMute,
   onToggleCamera,
+  onSwitchCamera,
+  canSwitchCamera,
   onDismissError,
 }: CallScreenProps) {
   const remote = useStream(remoteStream);
@@ -230,7 +242,23 @@ export function CallScreen({
     >
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {showRemoteVideo ? (
-          <video ref={remote.ref} autoPlay playsInline className="size-full object-cover" />
+          <>
+            <video ref={remote.ref} autoPlay playsInline className="size-full object-cover" />
+            {/* Their camera is off: cover the black frames with a placeholder
+                rather than showing a dead rectangle. Audio still plays through
+                the video element underneath. */}
+            {peerCameraOff && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg-deep">
+                <div className="flex size-28 items-center justify-center rounded-full border border-border bg-surface">
+                  <User size={44} className="text-secondary" aria-hidden />
+                </div>
+                <p className="flex items-center gap-1.5 text-sm text-secondary">
+                  <VideoOff size={15} aria-hidden />
+                  Camera off
+                </p>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {/* Audio-only, or video that hasn't connected yet. The remote
@@ -283,6 +311,19 @@ export function CallScreen({
             {error}
           </p>
         )}
+
+        {/* The other person muted their mic — a small corner badge, shown on
+            voice and video calls alike. Their camera-off is handled by the
+            placeholder above, so this only carries the mic. */}
+        {inCall && peerMuted && (
+          <div
+            className="glass absolute left-4 top-4 flex items-center gap-1.5 rounded-full border
+                       border-border px-3 py-1.5 text-xs text-secondary"
+          >
+            <MicOff size={14} className="text-danger" aria-hidden />
+            Muted
+          </div>
+        )}
       </div>
 
       <div className="glass border-t border-border px-6 pb-safe pt-5">
@@ -310,18 +351,16 @@ export function CallScreen({
 
           {inCall && (
             <>
+              <VolumeControl level={boost.level} onChange={boost.setLevel} />
+
+              {/* The two "mute" toggles sit together — audio, then video — so
+                  they read as a pair. On a voice call only the audio one shows. */}
               <RoundButton
                 onClick={onToggleMute}
                 label={muted ? 'Unmute' : 'Mute'}
                 variant={muted ? 'active' : 'neutral'}
               >
-                {muted ? <MicOff size={20} aria-hidden /> : <Mic size={20} aria-hidden />}
-              </RoundButton>
-
-              <VolumeControl level={boost.level} onChange={boost.setLevel} />
-
-              <RoundButton onClick={onHangUp} label="End call" variant="danger">
-                <PhoneOff size={24} aria-hidden />
+                {muted ? <MicOff size={22} aria-hidden /> : <Mic size={22} aria-hidden />}
               </RoundButton>
 
               {isVideo && (
@@ -330,13 +369,23 @@ export function CallScreen({
                   label={cameraOff ? 'Turn camera on' : 'Turn camera off'}
                   variant={cameraOff ? 'active' : 'neutral'}
                 >
-                  {cameraOff ? (
-                    <VideoOff size={20} aria-hidden />
-                  ) : (
-                    <Video size={20} aria-hidden />
-                  )}
+                  {cameraOff ? <VideoOff size={22} aria-hidden /> : <Video size={22} aria-hidden />}
                 </RoundButton>
               )}
+
+              {/* Flip front/back, right beside the camera toggle it belongs to.
+                  Only shown when there is a second camera to flip to. */}
+              {isVideo && canSwitchCamera && (
+                <RoundButton onClick={onSwitchCamera} label="Switch camera" variant="neutral">
+                  <SwitchCamera size={22} aria-hidden />
+                </RoundButton>
+              )}
+
+              {/* Hang up is set apart from the toggles — beside the group, never
+                  wedged between the two mute buttons. */}
+              <RoundButton onClick={onHangUp} label="End call" variant="danger" className="ml-3">
+                <PhoneOff size={26} aria-hidden />
+              </RoundButton>
             </>
           )}
         </div>

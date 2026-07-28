@@ -11,9 +11,12 @@ import { ROOM_ID } from '@/config';
  *   rooms/{roomId}/messages/{id}    — encrypted messages
  *   rooms/{roomId}/presence/{a|b}   — online / lastSeen / typing
  *   rooms/{roomId}/images/{id}      — encrypted image bytes, one doc per image
- *   rooms/{roomId}/emojis/{id}      — custom emoji; the ONE collection with no
- *                                     expiry, since a pack that vanished every
- *                                     24 hours would be pointless
+ *   rooms/{roomId}/emojis/{id}      — custom emoji; no expiry, since a pack
+ *                                     that vanished every 24 hours would be
+ *                                     pointless
+ *   rooms/{roomId}/pins/{id}        — pinned messages; also no expiry. id is
+ *                                     the message id. Content is snapshotted in
+ *                                     so the pin outlives the swept original
  *
  * Images live in Firestore rather than Cloud Storage because Storage requires
  * the paid Blaze plan. Keeping them in a separate collection (rather than
@@ -34,10 +37,18 @@ export const paths = {
   presence: (slot: 'a' | 'b') => `rooms/${ROOM_ID}/presence/${slot}`,
   images: () => `rooms/${ROOM_ID}/images`,
   image: (id: string) => `rooms/${ROOM_ID}/images/${id}`,
+  videos: () => `rooms/${ROOM_ID}/videos`,
+  video: (id: string) => `rooms/${ROOM_ID}/videos/${id}`,
   audioClips: () => `rooms/${ROOM_ID}/audio`,
   audioClip: (id: string) => `rooms/${ROOM_ID}/audio/${id}`,
   emojis: () => `rooms/${ROOM_ID}/emojis`,
   emoji: (id: string) => `rooms/${ROOM_ID}/emojis/${id}`,
+  pins: () => `rooms/${ROOM_ID}/pins`,
+  pin: (id: string) => `rooms/${ROOM_ID}/pins/${id}`,
+  doodles: () => `rooms/${ROOM_ID}/doodles`,
+  doodle: (id: string) => `rooms/${ROOM_ID}/doodles/${id}`,
+  // Keyed by the SETTER's slot: nicknames/b is B's label for A, read by A.
+  nickname: (slot: 'a' | 'b') => `rooms/${ROOM_ID}/nicknames/${slot}`,
   calls: () => `rooms/${ROOM_ID}/calls`,
   call: (id: string) => `rooms/${ROOM_ID}/calls/${id}`,
   callCandidates: (id: string, side: 'caller' | 'callee') =>

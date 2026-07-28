@@ -65,7 +65,7 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className="animate-rise flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
+        className="animate-scale-in flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
                    rounded-lg border border-border bg-surface shadow-lift"
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">

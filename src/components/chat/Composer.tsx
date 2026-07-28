@@ -1,31 +1,39 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
+  AtSign,
   Camera,
+  Clock,
   CornerUpLeft,
   ImagePlus,
   Loader2,
   Mic,
+  PenLine,
   Plus,
   Smile,
   Trash2,
   X,
 } from 'lucide-react';
 import type { ReplyRef } from '@/types';
-import { AUDIO, IMAGES, MESSAGES, gifSearchEnabled } from '@/config';
+import { AUDIO, IMAGES, MESSAGES, VIDEO, gifSearchEnabled } from '@/config';
 import { useRecorder } from '@/hooks/useRecorder';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
+import { useMentionNames } from '@/hooks/useMentionNames';
 import { EmojiPicker } from './EmojiPicker';
 import { GifPicker } from './GifPicker';
+import { ScheduleModal } from './ScheduleModal';
 import type { GifResult } from '@/services/gifs';
 import { cn } from '@/utils/cn';
 
 interface ComposerProps {
   onSend: (text: string) => void;
   onSendImage: (file: File) => void;
+  onSendVideo: (file: File) => void;
   onSendVoice: (blob: Blob, durationMs: number, peaks: number[]) => void;
   onSendGif: (result: GifResult) => void;
   onOpenCamera: () => void;
+  onOpenScribble: () => void;
+  onSchedule: (text: string, deliverAt: number) => void;
   onTyping: () => void;
   replyTo: ReplyRef | null;
   onCancelReply: () => void;
@@ -50,9 +58,12 @@ function formatTime(ms: number): string {
 export function Composer({
   onSend,
   onSendImage,
+  onSendVideo,
   onSendVoice,
   onSendGif,
   onOpenCamera,
+  onOpenScribble,
+  onSchedule,
   onTyping,
   replyTo,
   onCancelReply,
@@ -62,6 +73,8 @@ export function Composer({
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
 
@@ -87,56 +100,157 @@ export function Composer({
     });
   };
 
-  // --- :shortcode: autocomplete ---------------------------------------------
+  /**
+   * Wraps the selection in a Markdown marker — `**` for bold, `*` for italic —
+   * and toggles it back off if the selection is already wrapped, which is what
+   * every editor does and what makes the shortcut feel native.
+   *
+   * With nothing selected it inserts the pair and parks the caret between them,
+   * so Cmd+B then typing produces bold text directly.
+   */
+  const wrapSelection = (marker: string) => {
+    const element = textareaRef.current;
+    if (!element) return;
+
+    const start = element.selectionStart;
+    const end = element.selectionEnd;
+    const selected = value.slice(start, end);
+    const len = marker.length;
+
+    /**
+     * How many asterisks already hug the selection on each side.
+     *
+     * Counting the whole run — rather than just peeking at `len` characters —
+     * is what lets bold and italic nest correctly. `**bold**` has a run of 2,
+     * so Cmd+I must ADD italic (giving `***bold***`) rather than strip one
+     * asterisk off each side and silently downgrade it. The parity test below
+     * falls out of that: an odd run means italic is already applied.
+     */
+    let runBefore = 0;
+    for (let i = start - 1; i >= 0 && value[i] === '*'; i -= 1) runBefore += 1;
+    let runAfter = 0;
+    for (let i = end; i < value.length && value[i] === '*'; i += 1) runAfter += 1;
+
+    const alreadyApplied =
+      marker === '*'
+        ? runBefore % 2 === 1 && runAfter % 2 === 1
+        : runBefore >= 2 && runAfter >= 2;
+
+    // Markers sit just OUTSIDE the selection (you selected the words, not the
+    // asterisks) — the common case when toggling off.
+    if (alreadyApplied && start >= len) {
+      setValue(value.slice(0, start - len) + selected + value.slice(end + len));
+      requestAnimationFrame(() => {
+        element.focus();
+        element.setSelectionRange(start - len, end - len);
+      });
+      return;
+    }
+
+    // Markers sit INSIDE the selection (you selected the asterisks too).
+    if (selected.length >= len * 2 && selected.startsWith(marker) && selected.endsWith(marker)) {
+      const inner = selected.slice(len, -len);
+      setValue(value.slice(0, start) + inner + value.slice(end));
+      requestAnimationFrame(() => {
+        element.focus();
+        element.setSelectionRange(start, start + inner.length);
+      });
+      return;
+    }
+
+    setValue(value.slice(0, start) + marker + selected + marker + value.slice(end));
+    requestAnimationFrame(() => {
+      element.focus();
+      element.setSelectionRange(start + len, start + len + selected.length);
+    });
+  };
+
+  // --- @mention and :shortcode: autocomplete --------------------------------
 
   const { emojis: customEmojis } = useCustomEmoji();
+  const { peerName } = useMentionNames();
   const [caret, setCaret] = useState(0);
   const [highlight, setHighlight] = useState(0);
   const [suggestDismissed, setSuggestDismissed] = useState(false);
 
   /**
-   * The partial shortcode immediately before the caret, if any.
-   *
-   * Anchored to a word boundary so a colon in ordinary writing ("12:30",
-   * "note: this") cannot open the menu, and requires at least one character
-   * after the colon so typing a bare `:` does not dump the whole pack on
-   * screen.
+   * The partial `@name` before the caret. Anchored to a word boundary so an `@`
+   * mid-word does not trigger, and allows an empty query so bare `@` shows both
+   * people.
+   */
+  const mentionQuery = useMemo(() => {
+    const match = /(?:^|\s)@(\w*)$/.exec(value.slice(0, caret));
+    return match ? (match[1] ?? '') : null;
+  }, [value, caret]);
+
+  /**
+   * The partial `:shortcode` before the caret. A word boundary keeps a colon in
+   * ordinary writing ("12:30") from opening the menu, and one character is
+   * required so a bare `:` does not dump the whole pack.
    */
   const shortcodeQuery = useMemo(() => {
-    const before = value.slice(0, caret);
-    const match = /(?:^|\s):([a-z0-9_]{1,32})$/.exec(before);
+    const match = /(?:^|\s):([a-z0-9_]{1,32})$/.exec(value.slice(0, caret));
     return match?.[1] ?? null;
   }, [value, caret]);
 
-  const suggestions = useMemo(() => {
-    if (shortcodeQuery === null || suggestDismissed) return [];
-    // Prefix matches first, then anything containing the query — typing "par"
-    // should surface `:party_parrot:` above `:sad_parrot:`.
-    const starts = customEmojis.filter((emoji) => emoji.name.startsWith(shortcodeQuery));
-    const contains = customEmojis.filter(
-      (emoji) => !emoji.name.startsWith(shortcodeQuery) && emoji.name.includes(shortcodeQuery),
-    );
-    return [...starts, ...contains].slice(0, 8);
-  }, [shortcodeQuery, customEmojis, suggestDismissed]);
+  interface Suggestion {
+    id: string;
+    label: string;
+    insert: string;
+    imageUrl?: string;
+  }
 
-  // A new query is a new menu, so the highlight goes back to the top and any
-  // earlier dismissal stops applying.
+  /** Whichever menu is active — mentions take precedence over shortcodes. */
+  const active = useMemo<{ trigger: '@' | ':'; items: Suggestion[] } | null>(() => {
+    if (suggestDismissed) return null;
+
+    if (mentionQuery !== null) {
+      const query = mentionQuery.toLowerCase();
+      const candidates: Suggestion[] = [
+        { id: 'you', label: 'You', insert: '@You ' },
+        { id: 'peer', label: peerName, insert: `@${peerName} ` },
+      ];
+      const items = candidates.filter((c) => c.label.toLowerCase().startsWith(query));
+      return items.length > 0 ? { trigger: '@', items } : null;
+    }
+
+    if (shortcodeQuery !== null) {
+      const starts = customEmojis.filter((emoji) => emoji.name.startsWith(shortcodeQuery));
+      const contains = customEmojis.filter(
+        (emoji) => !emoji.name.startsWith(shortcodeQuery) && emoji.name.includes(shortcodeQuery),
+      );
+      const items = [...starts, ...contains].slice(0, 8).map(
+        (emoji): Suggestion => ({
+          id: emoji.id,
+          label: `:${emoji.name}:`,
+          insert: `:${emoji.name}: `,
+          imageUrl: emoji.url,
+        }),
+      );
+      return items.length > 0 ? { trigger: ':', items } : null;
+    }
+
+    return null;
+  }, [suggestDismissed, mentionQuery, shortcodeQuery, peerName, customEmojis]);
+
+  const activeItems = active?.items ?? [];
+
+  // A new query is a new menu: reset the highlight to the top.
   useEffect(() => {
     setHighlight(0);
-  }, [shortcodeQuery]);
+  }, [mentionQuery, shortcodeQuery]);
 
-  const completeShortcode = (name: string) => {
+  const complete = (item: Suggestion) => {
+    if (!active) return;
     const element = textareaRef.current;
-    const before = value.slice(0, caret);
-    const start = before.lastIndexOf(':');
+    const start = value.slice(0, caret).lastIndexOf(active.trigger);
     if (start < 0) return;
 
-    const replacement = `:${name}: `;
-    const next = value.slice(0, start) + replacement + value.slice(caret);
+    const next = value.slice(0, start) + item.insert + value.slice(caret);
     setValue(next);
     setSuggestDismissed(false);
 
-    const position = start + replacement.length;
+    const position = start + item.insert.length;
     requestAnimationFrame(() => {
       element?.focus();
       element?.setSelectionRange(position, position);
@@ -154,6 +268,12 @@ export function Composer({
     element.style.height = `${String(Math.min(element.scrollHeight, 160))}px`;
   }, [value]);
 
+  // Starting a reply should drop the cursor straight into the text box, so you
+  // can type without a second click.
+  useEffect(() => {
+    if (replyTo) textareaRef.current?.focus();
+  }, [replyTo]);
+
   useEffect(() => {
     if (!attachOpen) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -170,11 +290,21 @@ export function Composer({
     };
   }, [attachOpen]);
 
+  /**
+   * Fires the send animation for exactly one cycle.
+   *
+   * Keyed rather than toggled with a timer: bumping the key remounts the
+   * animated elements, so rapid-fire sends each get their own full animation
+   * instead of the second one landing mid-flight and being ignored.
+   */
+  const [launchKey, setLaunchKey] = useState(0);
+
   const submit = () => {
     const trimmed = value.trim();
     if (trimmed.length === 0 || disabled) return;
     onSend(trimmed);
     setValue('');
+    setLaunchKey((k) => k + 1);
   };
 
   const finishRecording = async () => {
@@ -274,6 +404,28 @@ export function Composer({
 
   return (
     <div className="glass edge-light border-t border-border px-3 py-3 pb-safe">
+      {/* Schedule-mode banner: the send button becomes a clock until cancelled. */}
+      {scheduleMode && (
+        <div className="animate-rise mx-auto mb-2 flex max-w-[850px] items-center gap-2 rounded-md
+                        border-l-2 border-accent bg-surface/60 py-2 pl-3 pr-2">
+          <Clock size={14} className="shrink-0 text-accent" aria-hidden />
+          <span className="flex-1 text-xs text-secondary">
+            Scheduling — type your message, then tap the clock to pick a time.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setScheduleMode(false);
+            }}
+            aria-label="Cancel scheduling"
+            className="press flex size-7 shrink-0 items-center justify-center rounded-full
+                       text-muted hover:bg-surface-raised hover:text-text"
+          >
+            <X size={14} aria-hidden />
+          </button>
+        </div>
+      )}
+
       {/* Reply context sits above the pill, matching where the quote will
           appear in the sent bubble. */}
       {replyTo && (
@@ -297,16 +449,16 @@ export function Composer({
         </div>
       )}
 
-      {suggestions.length > 0 && (
+      {activeItems.length > 0 && (
         <div
           role="listbox"
-          aria-label="Custom emoji suggestions"
+          aria-label={active?.trigger === '@' ? 'Mention suggestions' : 'Custom emoji suggestions'}
           className="animate-rise mx-auto mb-2 max-w-[850px] overflow-hidden rounded-md border
                      border-border bg-surface/97 shadow-lift backdrop-blur-xl"
         >
-          {suggestions.map((emoji, index) => (
+          {activeItems.map((item, index) => (
             <button
-              key={emoji.id}
+              key={item.id}
               type="button"
               role="option"
               aria-selected={index === highlight}
@@ -315,7 +467,7 @@ export function Composer({
               // depends on is gone.
               onPointerDown={(event) => {
                 event.preventDefault();
-                completeShortcode(emoji.name);
+                complete(item);
               }}
               onPointerEnter={() => {
                 setHighlight(index);
@@ -325,8 +477,17 @@ export function Composer({
                 index === highlight ? 'bg-accent-solid/25 text-text' : 'text-secondary',
               )}
             >
-              <img src={emoji.url} alt="" aria-hidden className="size-5 object-contain" />
-              <span className="truncate">:{emoji.name}:</span>
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt="" aria-hidden className="size-5 object-contain" />
+              ) : (
+                <span
+                  className="flex size-5 shrink-0 items-center justify-center rounded-full
+                             bg-accent-solid/20 text-accent"
+                >
+                  <AtSign size={12} aria-hidden />
+                </span>
+              )}
+              <span className="truncate">{item.label}</span>
             </button>
           ))}
         </div>
@@ -346,14 +507,21 @@ export function Composer({
           focused ? 'border-accent shadow-glow' : 'border-border hover:border-border-strong',
         )}
       >
+        {/* One picker for both photos and video. The system file/gallery sheet
+            offers everything the accept list covers, and the handler routes by
+            the file's own type — so there is no reason to make the person
+            declare up front which kind of thing they are about to choose. */}
         <input
           ref={fileRef}
           type="file"
-          accept={IMAGES.ACCEPTED_MIME.join(',')}
+          accept={[...IMAGES.ACCEPTED_MIME, ...VIDEO.ACCEPTED_MIME].join(',')}
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onSendImage(file);
+            if (file) {
+              if (file.type.startsWith('video/')) onSendVideo(file);
+              else onSendImage(file);
+            }
             event.target.value = '';
           }}
         />
@@ -365,8 +533,9 @@ export function Composer({
           {attachOpen && (
             <div
               role="menu"
-              className="glass animate-rise absolute bottom-[calc(100%+0.75rem)] left-0 w-44
-                         overflow-hidden rounded-md border border-border shadow-lift"
+              className="glass animate-scale-in stagger absolute bottom-[calc(100%+0.75rem)] left-0
+                         w-44 origin-bottom-left overflow-hidden rounded-md border border-border
+                         shadow-lift"
             >
               <button
                 type="button"
@@ -379,7 +548,7 @@ export function Composer({
                            transition-colors duration-150 hover:bg-surface-raised"
               >
                 <ImagePlus size={16} className="text-accent" aria-hidden />
-                Photo
+                Media
               </button>
               <button
                 type="button"
@@ -393,6 +562,32 @@ export function Composer({
               >
                 <Camera size={16} className="text-accent" aria-hidden />
                 Camera
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAttachOpen(false);
+                  onOpenScribble();
+                }}
+                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
+                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
+              >
+                <PenLine size={16} className="text-accent" aria-hidden />
+                Scribble
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAttachOpen(false);
+                  setScheduleMode(true);
+                }}
+                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
+                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
+              >
+                <Clock size={16} className="text-accent" aria-hidden />
+                Schedule
               </button>
             </div>
           )}
@@ -421,8 +616,10 @@ export function Composer({
                 size={20}
                 aria-hidden
                 className={cn(
-                  'transition-transform duration-300 ease-spring',
-                  attachOpen && 'rotate-45',
+                  'transition-transform duration-500 ease-spring',
+                  // A full half-turn INTO the cross, rather than the short 45°
+                  // hop — the extra rotation is what makes it feel deliberate.
+                  attachOpen && 'rotate-[225deg]',
                 )}
               />
             )}
@@ -460,28 +657,45 @@ export function Composer({
             setCaret(event.currentTarget.selectionStart);
           }}
           onKeyDown={(event) => {
+            // Formatting shortcuts, claimed before anything else so they behave
+            // the same whether or not a completion menu happens to be open.
+            // Cmd on macOS, Ctrl on Windows/Linux — both accepted everywhere.
+            if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+              const key = event.key.toLowerCase();
+              if (key === 'b') {
+                event.preventDefault();
+                wrapSelection('**');
+                return;
+              }
+              if (key === 'i') {
+                event.preventDefault();
+                wrapSelection('*');
+                return;
+              }
+            }
+
             // The suggestion menu claims these keys first. Enter must not send
             // the message while a completion is highlighted — that was the
             // single most likely way to accidentally fire off a half-written
             // shortcode.
-            if (suggestions.length > 0) {
+            if (activeItems.length > 0) {
               if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                setHighlight((current) => (current + 1) % suggestions.length);
+                setHighlight((current) => (current + 1) % activeItems.length);
                 return;
               }
               if (event.key === 'ArrowUp') {
                 event.preventDefault();
                 setHighlight(
-                  (current) => (current - 1 + suggestions.length) % suggestions.length,
+                  (current) => (current - 1 + activeItems.length) % activeItems.length,
                 );
                 return;
               }
               if (event.key === 'Enter' || event.key === 'Tab') {
-                const chosen = suggestions[highlight];
+                const chosen = activeItems[highlight];
                 if (chosen) {
                   event.preventDefault();
-                  completeShortcode(chosen.name);
+                  complete(chosen);
                   return;
                 }
               }
@@ -594,22 +808,31 @@ export function Composer({
         <button
           type="button"
           onClick={() => {
-            if (canSend) submit();
+            if (canSend && scheduleMode) setScheduleModalOpen(true);
+            else if (canSend) submit();
             else void recorder.start();
           }}
           disabled={disabled}
-          aria-label={canSend ? 'Send' : 'Record voice message'}
+          aria-label={
+            scheduleMode && canSend ? 'Choose a time' : canSend ? 'Send' : 'Record voice message'
+          }
           className={cn(
-            'press group relative flex size-10 shrink-0 items-center justify-center',
-            'overflow-hidden rounded-full',
+            'press group relative flex size-10 shrink-0 items-center justify-center rounded-full',
             canSend
-              ? 'bg-gradient-to-b from-accent-solid to-accent-solid-deep text-white shadow-glow hover:shadow-glow-strong'
+              ? cn(
+                  'animate-gradient bg-gradient-to-br from-accent-solid via-accent-solid-hover',
+                  'to-accent-solid-deep text-white shadow-glow hover:shadow-glow-strong',
+                  'hover:scale-105',
+                )
               : 'bg-surface-raised/80 text-secondary hover:bg-surface-raised hover:text-accent',
             'disabled:opacity-40',
           )}
         >
           {canSend && (
-            <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
+            >
               <span
                 className="absolute inset-y-0 w-1/2 bg-white/25 opacity-0 blur-md
                            group-hover:opacity-100 group-hover:[animation:shimmer_800ms_ease-out]"
@@ -617,25 +840,50 @@ export function Composer({
             </span>
           )}
 
-          <span className="relative z-10 grid place-items-center">
-            <Mic
-              size={19}
+          {/* The shockwave left behind by a send. Outside the clipped layer so
+              it can expand past the button, and keyed so every send replays. */}
+          {launchKey > 0 && (
+            <span
+              key={launchKey}
               aria-hidden
-              className={cn(
-                'col-start-1 row-start-1 transition-all duration-250 ease-spring',
-                canSend ? 'scale-50 rotate-90 opacity-0' : 'scale-100 rotate-0 opacity-100',
-              )}
+              className="animate-ring pointer-events-none absolute inset-0 rounded-full
+                         border-2 border-accent"
             />
-            <ArrowUp
-              size={18}
-              aria-hidden
-              className={cn(
-                'col-start-1 row-start-1 transition-all duration-250 ease-spring',
-                canSend
-                  ? 'scale-100 rotate-0 opacity-100 group-hover:-translate-y-0.5'
-                  : 'scale-50 -rotate-90 opacity-0',
-              )}
-            />
+          )}
+
+          {/* Keyed so the throw replays on every send — the class alone would
+              only animate once, since it never actually changes. */}
+          <span
+            key={`icon-${String(launchKey)}`}
+            className={cn(
+              'relative z-10 grid place-items-center',
+              launchKey > 0 && 'animate-launch',
+            )}
+          >
+            {scheduleMode && canSend ? (
+              <Clock size={18} aria-hidden />
+            ) : (
+              <>
+                <Mic
+                  size={19}
+                  aria-hidden
+                  className={cn(
+                    'col-start-1 row-start-1 transition-all duration-250 ease-spring',
+                    canSend ? 'scale-50 rotate-90 opacity-0' : 'scale-100 rotate-0 opacity-100',
+                  )}
+                />
+                <ArrowUp
+                  size={18}
+                  aria-hidden
+                  className={cn(
+                    'col-start-1 row-start-1 transition-all duration-250 ease-spring',
+                    canSend
+                      ? 'scale-100 rotate-0 opacity-100 group-hover:-translate-y-0.5'
+                      : 'scale-50 -rotate-90 opacity-0',
+                  )}
+                />
+              </>
+            )}
           </span>
         </button>
       </div>
@@ -649,6 +897,20 @@ export function Composer({
         <p role="alert" className="mt-2 text-center text-[0.6875rem] text-muted">
           Voice messages aren&apos;t supported in this browser.
         </p>
+      )}
+
+      {scheduleModalOpen && (
+        <ScheduleModal
+          onConfirm={(deliverAt) => {
+            onSchedule(value.trim(), deliverAt);
+            setValue('');
+            setScheduleMode(false);
+            setScheduleModalOpen(false);
+          }}
+          onClose={() => {
+            setScheduleModalOpen(false);
+          }}
+        />
       )}
     </div>
   );

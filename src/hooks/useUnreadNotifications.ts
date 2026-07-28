@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { APP_NAME } from '@/config';
+import { playTing } from '@/utils/sound';
+import type { NotificationSettings } from '@/hooks/useNotificationSettings';
 import type { Message, ParticipantId } from '@/types';
 
 /** What a notification says for each kind of message. */
@@ -9,6 +11,8 @@ function preview(message: Message): string {
       return message.payload.text.slice(0, 120);
     case 'image':
       return message.payload.mime === 'image/gif' ? 'GIF' : 'Photo';
+    case 'video':
+      return 'Video';
     case 'audio':
       return 'Voice message';
     case 'call':
@@ -29,12 +33,21 @@ function preview(message: Message): string {
  *   - notify for the backlog on load, which would fire fifty at once
  *   - notify twice for the same message when React re-renders
  */
-export function useUnreadNotifications(messages: readonly Message[], slot: ParticipantId) {
+export function useUnreadNotifications(
+  messages: readonly Message[],
+  slot: ParticipantId,
+  settings: NotificationSettings,
+) {
   const [unread, setUnread] = useState(0);
 
   // Anything already present when the hook mounts is history, not news.
   const mountedAt = useRef(Date.now());
   const notified = useRef<Set<string>>(new Set());
+
+  // Read inside the fresh-message effect without making settings a dependency —
+  // toggling a preference must not re-run the detection and re-notify.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   useEffect(() => {
     // Asking on mount works because reaching the conversation always required
@@ -74,16 +87,20 @@ export function useUnreadNotifications(messages: readonly Message[], slot: Parti
 
     if (fresh.length === 0) return;
 
+    const { sound, inTab } = settingsRef.current;
+
     for (const message of fresh) {
       notified.current.add(message.id);
 
-      if ('Notification' in window && Notification.permission === 'granted') {
+      if (inTab && 'Notification' in window && Notification.permission === 'granted') {
         const notification = new Notification(APP_NAME, {
           body: preview(message),
           // Same tag for all of them: a new message replaces the previous
           // notification rather than stacking twenty of them.
           tag: 'atlas-message',
-          silent: false,
+          // The Web Audio ting is the sound, gated by the user's own setting —
+          // so the OS notification itself stays silent to avoid a double chime.
+          silent: true,
         });
         notification.onclick = () => {
           window.focus();
@@ -92,17 +109,20 @@ export function useUnreadNotifications(messages: readonly Message[], slot: Parti
       }
     }
 
-    setUnread((current) => current + fresh.length);
+    // One ting per batch, not per message — a burst should not machine-gun.
+    if (sound) playTing();
+    if (inTab) setUnread((current) => current + fresh.length);
   }, [messages, slot]);
 
   // Tab title carries the count, which is visible even with notifications
-  // denied or suppressed by Do Not Disturb.
+  // denied or suppressed by Do Not Disturb. Suppressed entirely when the in-tab
+  // toggle is off.
   useEffect(() => {
-    document.title = unread > 0 ? `(${String(unread)}) ${APP_NAME}` : APP_NAME;
+    document.title = settings.inTab && unread > 0 ? `(${String(unread)}) ${APP_NAME}` : APP_NAME;
     return () => {
       document.title = APP_NAME;
     };
-  }, [unread]);
+  }, [unread, settings.inTab]);
 
   return unread;
 }

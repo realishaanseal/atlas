@@ -41,19 +41,44 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/rooms/$(roomId)).data;
     }
 
+    // The A side may hold two devices — deviceA and the optional deviceA2 — so
+    // one person can be on a laptop and a phone at once. get() with a default
+    // tolerates rooms created before deviceA2 existed. The B side stays single.
+    function isA(roomId) {
+      return signedIn()
+        && (roomData(roomId).deviceA == uid()
+            || roomData(roomId).get('deviceA2', null) == uid());
+    }
+
+    function isB(roomId) {
+      return signedIn() && roomData(roomId).deviceB == uid();
+    }
+
     // A single get(), cached for the duration of the request evaluation.
     function isPaired(roomId) {
-      return signedIn()
-        && (roomData(roomId).deviceA == uid() || roomData(roomId).deviceB == uid());
+      return isA(roomId) || isB(roomId);
     }
 
     // Which slot the caller currently occupies, derived from the room document
     // rather than from anything the caller sends. Returns '' when unpaired,
-    // which matches no field name and so grants nothing.
+    // which matches no field name and so grants nothing. Both A devices report
+    // 'a'.
     function mySlot(roomId) {
-      return roomData(roomId).deviceA == uid()
-        ? 'a'
-        : (roomData(roomId).deviceB == uid() ? 'b' : '');
+      return isA(roomId) ? 'a' : (isB(roomId) ? 'b' : '');
+    }
+
+    // Whether a pin document exists for a given message/media id. Pins are keyed
+    // by the message id, so this is what lets a message's expiry be extended
+    // ONLY while it is genuinely pinned — the retention guarantee still holds for
+    // everything unpinned.
+    function pinnedExists(roomId, id) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId)/pins/$(id));
+    }
+
+    // ~Year 3000. Stamped on a pinned message so the sweep skips it. Must match
+    // PINS.KEEP_UNTIL in config.ts.
+    function pinKeepUntil() {
+      return 32503680000000;
     }
 
     // Base64url only. Rejects padding, whitespace, and anything that could be
@@ -101,15 +126,20 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
 
-      // First device to arrive creates the room and claims slot A.
+      // First device to arrive creates the room and claims slot A. New rooms
+      // carry the second-A slot and link marker from the start; older rooms do
+      // not, and the rules below read those two via get() so both shapes work.
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(
-             ['schemaVersion', 'createdAt', 'deviceA', 'deviceB', 'repairUntil'])
+             ['schemaVersion', 'createdAt', 'deviceA', 'deviceA2', 'deviceB',
+              'repairUntil', 'linkTarget'])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.createdAt >= now() - 60000
         && request.resource.data.deviceA == uid()
+        && request.resource.data.deviceA2 == null
         && request.resource.data.deviceB == null
-        && request.resource.data.repairUntil == 0;
+        && request.resource.data.repairUntil == 0
+        && request.resource.data.linkTarget == null;
 
       // Slot transitions. A slot may be:
       //   - left unchanged
@@ -124,19 +154,33 @@ service cloud.firestore {
           || (resource.data.repairUntil > now() && newSlot == uid());
       }
 
+      // No uid may occupy two DIFFERENT slots. Two A devices are the point, so
+      // deviceA and deviceA2 differing is required, but neither A slot may equal
+      // deviceB.
+      function distinctSlots(d) {
+        return (d.deviceA == null || d.deviceA != d.deviceB)
+          && (d.get('deviceA2', null) == null || d.get('deviceA2', null) != d.deviceB)
+          && (d.get('deviceA2', null) == null || d.deviceA == null
+              || d.get('deviceA2', null) != d.deviceA);
+      }
+
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['deviceA', 'deviceB', 'repairUntil'])
+             .hasOnly(['deviceA', 'deviceA2', 'deviceB', 'repairUntil', 'linkTarget'])
         && slotOk(resource.data.deviceA, request.resource.data.deviceA)
+        && slotOk(resource.data.get('deviceA2', null),
+                  request.resource.data.get('deviceA2', null))
         && slotOk(resource.data.deviceB, request.resource.data.deviceB)
-        // Never let one uid hold both slots.
-        && (request.resource.data.deviceA == null
-            || request.resource.data.deviceA != request.resource.data.deviceB)
+        && distinctSlots(request.resource.data)
         // Only an already-paired device may open a re-pair window, and it may
         // open it for at most 5 minutes.
         && (request.resource.data.repairUntil == resource.data.repairUntil
             || (isPaired(roomId)
-                && request.resource.data.repairUntil <= now() + 300000));
+                && request.resource.data.repairUntil <= now() + 300000))
+        // linkTarget may only be cleared, or set to 'a' by a paired device.
+        && (request.resource.data.get('linkTarget', null) == resource.data.get('linkTarget', null)
+            || request.resource.data.get('linkTarget', null) == null
+            || (isPaired(roomId) && request.resource.data.get('linkTarget', null) == 'a'));
 
       // Recovering from losing both devices is a console operation, on
       // purpose. There is no client-side path to wiping the pairing state.
@@ -192,13 +236,21 @@ service cloud.firestore {
         // self-healing: claim the slot, and presence starts working.
         allow create, update: if isPaired(roomId)
           && request.resource.data.keys().hasOnly(
-               ['owner', 'online', 'lastSeen', 'typingUntil'])
+               ['owner', 'online', 'lastSeen', 'typingUntil', 'lastSeenOverride'])
           && request.resource.data.owner == uid()
-          && ((slot == 'a' && roomData(roomId).deviceA == uid())
-              || (slot == 'b' && roomData(roomId).deviceB == uid()))
+          && ((slot == 'a' && isA(roomId)) || (slot == 'b' && isB(roomId)))
           && request.resource.data.online is bool
           && request.resource.data.lastSeen >= now() - 60000
           && request.resource.data.lastSeen <= now() + 60000
+          // A display-only "last seen" the owner may set to any time within the
+          // past year and not in the future. `lastSeen` above stays pinned to the
+          // real clock — the staleness logic depends on it — so this is a
+          // separate field the peer's client renders instead, never a way to
+          // forge the value the protocol itself relies on.
+          && (!('lastSeenOverride' in request.resource.data)
+              || (request.resource.data.lastSeenOverride is int
+                  && request.resource.data.lastSeenOverride > now() - 31536000000
+                  && request.resource.data.lastSeenOverride <= now() + 60000))
           // Typing indicator is self-expiring and capped, so a buggy or
           // malicious client cannot pin it on indefinitely.
           && request.resource.data.typingUntil is int
@@ -231,14 +283,23 @@ service cloud.firestore {
         // below deletes them.
         allow list: if isPaired(roomId);
 
+        // A scheduled message is just a message with a FUTURE createdAt — it
+        // sorts into the timeline at its delivery time and the recipient's
+        // client hides it until then. That is why the upper bound on createdAt
+        // is a week out here rather than the ±1min of `validRetention`, while
+        // expiresAt stays exactly 24h past createdAt (so a scheduled message
+        // lives 24h after it is delivered, not after it was written).
         allow create: if isPaired(roomId)
           && request.resource.data.keys().hasOnly(
                ['sender', 'createdAt', 'expiresAt', 'body'])
           && request.resource.data.sender in ['a', 'b']
           // The sender field must match the slot this uid actually holds.
-          && ((request.resource.data.sender == 'a' && roomData(roomId).deviceA == uid())
-              || (request.resource.data.sender == 'b' && roomData(roomId).deviceB == uid()))
-          && validRetention(request.resource.data)
+          && ((request.resource.data.sender == 'a' && isA(roomId))
+              || (request.resource.data.sender == 'b' && isB(roomId)))
+          && request.resource.data.createdAt is int
+          && request.resource.data.createdAt >= now() - 60000
+          && request.resource.data.createdAt <= now() + 604800000
+          && request.resource.data.expiresAt == request.resource.data.createdAt + 86400000
           // ~12 KB ciphertext ceiling. Text is padded to at most 4096 bytes
           // before encryption; image messages carry only a wrapped key and a
           // small blur preview, never the image itself.
@@ -252,8 +313,8 @@ service cloud.firestore {
           && request.resource.data.readAt >= now() - 60000
           && request.resource.data.readAt <= now() + 60000
           // Only the party who did NOT send it can mark it read.
-          && ((resource.data.sender == 'a' && roomData(roomId).deviceB == uid())
-              || (resource.data.sender == 'b' && roomData(roomId).deviceA == uid()));
+          && ((resource.data.sender == 'a' && isB(roomId))
+              || (resource.data.sender == 'b' && isA(roomId)));
 
         // Reactions — the one place a device may write to a message it did
         // not send.
@@ -278,8 +339,56 @@ service cloud.firestore {
           && (!(mySlot(roomId) in request.resource.data.get('reactions', {}))
               || validEnvelope(request.resource.data.reactions[mySlot(roomId)], 512));
 
-        // Deletes are the retention sweep. Only expired documents may go.
-        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+        // Editing. Only the SENDER may change the body of their own message,
+        // and only `body` / `editedAt` / `originalBody` may move. The original
+        // is snapshotted exactly once — on the first edit `originalBody` is
+        // added, and every later edit must leave it untouched — so the history
+        // always shows the true first version. Reactions and read receipts are
+        // deliberately not touchable here; each has its own rule.
+        allow update: if isPaired(roomId)
+          && notExpired(resource.data)
+          && ((resource.data.sender == 'a' && isA(roomId))
+              || (resource.data.sender == 'b' && isB(roomId)))
+          && request.resource.data.editedAt is int
+          && request.resource.data.editedAt >= now() - 60000
+          && request.resource.data.editedAt <= now() + 60000
+          && validEnvelope(request.resource.data.body, 16384)
+          && (
+               // First edit: original preserved alongside the new body.
+               (!('originalBody' in resource.data)
+                 && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['body', 'editedAt', 'originalBody'])
+                 && validEnvelope(request.resource.data.originalBody, 16384))
+               // Later edit: original already stored, must stay put.
+               || (('originalBody' in resource.data)
+                 && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['body', 'editedAt']))
+             );
+
+        // Pinning keeps a message past the 24h sweep; unpinning restores its
+        // normal expiry. Only `expiresAt` may change, and only in agreement with
+        // whether a pin document exists for this message — so a message's life
+        // can be extended only while it is genuinely pinned. Every other field,
+        // including the ciphertext, stays immutable.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is int
+          && (
+               (pinnedExists(roomId, messageId)
+                 && request.resource.data.expiresAt == pinKeepUntil())
+               || (!pinnedExists(roomId, messageId)
+                 && request.resource.data.expiresAt == resource.data.createdAt + 86400000)
+             );
+
+        // Deletes are the retention sweep (only expired documents), OR a sender
+        // cancelling their own scheduled message before it is delivered — a
+        // message whose createdAt is still in the future has not been shown to
+        // the other person yet, so pulling it back leaks nothing.
+        allow delete: if isPaired(roomId)
+          && (resource.data.expiresAt <= now()
+              || (resource.data.createdAt > now()
+                  && ((resource.data.sender == 'a' && isA(roomId))
+                      || (resource.data.sender == 'b' && isB(roomId)))));
       }
 
       // --- images ----------------------------------------------------------
@@ -311,9 +420,51 @@ service cloud.firestore {
           && validRetention(request.resource.data)
           && validEnvelope(request.resource.data.data, 1000000);
 
-        // Write-once. An update would let a writer swap ciphertext under an id
-        // the peer has already accepted.
-        allow update: if false;
+        // The ciphertext stays write-once — only `expiresAt` may change, so a
+        // writer still cannot swap the image under an id the peer has accepted.
+        // This exists so pinning a message can keep its image past the sweep:
+        // the new value is either the far-future pin sentinel (extend) or at
+        // most 24h out (restore). The pin link is checked on the message doc,
+        // not here — an image document does not know which message references
+        // it — so this is a deliberate, value-bounded relaxation.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is int
+          && (request.resource.data.expiresAt == pinKeepUntil()
+              || request.resource.data.expiresAt <= now() + 86400000);
+
+        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+      }
+
+      // --- videos ----------------------------------------------------------
+      //
+      // Same shape and constraints as images: encrypted bytes, chunked across
+      // documents (videos/{id}-c0 …) because one clip far exceeds the 1 MiB
+      // document cap, each chunk with its own IV and its own 24h expiry so the
+      // sweep collects them without knowing they are chunks. Stored byte-for-byte
+      // like GIFs — no server-side transcode — so the per-doc ceiling is the same
+      // hard backstop as images.
+
+      match /videos/{videoId} {
+
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && videoId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'createdAt', 'expiresAt', 'data'])
+          && request.resource.data.owner == uid()
+          && validRetention(request.resource.data)
+          && validEnvelope(request.resource.data.data, 1000000);
+
+        // Write-once except expiresAt, so a pinned video can outlive the sweep;
+        // see the images rule for the full reasoning.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is int
+          && (request.resource.data.expiresAt == pinKeepUntil()
+              || request.resource.data.expiresAt <= now() + 86400000);
 
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }
@@ -371,6 +522,111 @@ service cloud.firestore {
         allow update: if false;
 
         allow delete: if isPaired(roomId);
+      }
+
+      // --- pinned messages -------------------------------------------------
+      //
+      // Like emoji, these do NOT expire — a pin that vanished with its message
+      // after 24 hours would be pointless. So no `expiresAt`, and
+      // `validRetention` is deliberately not applied.
+      //
+      // The document id is the message id. That makes pinning idempotent and
+      // unpinning a plain delete, and it satisfies the same id pattern the
+      // other collections use, so no special validation is needed.
+      //
+      // The message itself is swept after 24 hours, so the pin cannot lean on
+      // it: the displayable content is snapshotted into `snapshot` (encrypted)
+      // at pin time. That snapshot is content — the pinned message's text — so
+      // it is encrypted like everything else, never stored in the clear.
+      //
+      // Either paired device may delete a pin, not only whoever created it. A
+      // pin is shared state; a pin only one person could remove would leave the
+      // other stuck with it. Same reasoning as emoji.
+      //
+      // Known limitation: the count cap (see config PINS.MAX_COUNT) is
+      // client-side only, because rules cannot cheaply count a collection. The
+      // exposure is storage quota, not confidentiality.
+
+      match /pins/{pinId} {
+
+        allow get, list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && pinId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(['owner', 'pinnedAt', 'snapshot'])
+          && request.resource.data.owner == uid()
+          && request.resource.data.pinnedAt is int
+          && request.resource.data.pinnedAt >= now() - 60000
+          && request.resource.data.pinnedAt <= now() + 60000
+          && validEnvelope(request.resource.data.snapshot, 16384);
+
+        // Write-once. Re-pinning is a no-op the client avoids; an update would
+        // let a writer swap the snapshot under a pin the peer has already seen.
+        allow update: if false;
+
+        allow delete: if isPaired(roomId);
+      }
+
+      // --- doodles ---------------------------------------------------------
+      //
+      // Shared drawings over the chat, anchored to a message and expiring on the
+      // same 24h schedule so a doodle lives as long as what it was drawn over.
+      // The strokes are encrypted — a drawing is content — and write-once, like
+      // images. Either paired device may erase one.
+
+      match /doodles/{doodleId} {
+
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && doodleId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'anchorId', 'createdAt', 'expiresAt', 'data'])
+          && request.resource.data.owner == uid()
+          && request.resource.data.anchorId is string
+          && request.resource.data.anchorId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && validRetention(request.resource.data)
+          && validEnvelope(request.resource.data.data, 120000);
+
+        allow update: if false;
+        allow delete: if isPaired(roomId);
+      }
+
+      // --- nicknames -------------------------------------------------------
+      //
+      // The one deliberate exception to nicknames being on-device only. A person
+      // can publish the label THEY gave the other, so the other can see what
+      // they are called. The document at nicknames/{slot} belongs to the slot in
+      // its id — nicknames/a is A's label for B, nicknames/b is B's label for A —
+      // and only that slot's holder may write it.
+      //
+      // Whether this is read back is a CLIENT choice, and that is where the app's
+      // one-directional behaviour lives: the shipped client on the A side never
+      // writes nicknames/a, so there is simply nothing in the database for B to
+      // read. These rules stay symmetric (either side may write its own doc) so
+      // they encode no assumption about which side is which; the direction is
+      // policy, not schema.
+      //
+      // Encrypted, like all content — a plaintext label is exactly the kind of
+      // readable index the rest of the app refuses to store. No expiry, like
+      // emoji and pins.
+
+      match /nicknames/{slot} {
+
+        allow get, list: if isPaired(roomId) && (slot == 'a' || slot == 'b');
+
+        allow create, update: if isPaired(roomId)
+          && (slot == 'a' || slot == 'b')
+          && ((slot == 'a' && isA(roomId)) || (slot == 'b' && isB(roomId)))
+          && request.resource.data.keys().hasOnly(['name', 'updatedAt'])
+          && request.resource.data.updatedAt is int
+          && request.resource.data.updatedAt >= now() - 60000
+          && request.resource.data.updatedAt <= now() + 60000
+          && validEnvelope(request.resource.data.name, 256);
+
+        allow delete: if isPaired(roomId)
+          && ((slot == 'a' && isA(roomId)) || (slot == 'b' && isB(roomId)));
       }
 
       // --- call signalling -------------------------------------------------
@@ -456,7 +712,15 @@ service cloud.firestore {
           && validRetention(request.resource.data)
           && validEnvelope(request.resource.data.data, 1000000);
 
-        allow update: if false;
+        // Only `expiresAt` may change, so the clip stays write-once. Lets a
+        // pinned voice message outlive the sweep; see the images rule above for
+        // the full reasoning.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is int
+          && (request.resource.data.expiresAt == pinKeepUntil()
+              || request.resource.data.expiresAt <= now() + 86400000);
+
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }
     }

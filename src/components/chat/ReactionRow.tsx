@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SmilePlus } from 'lucide-react';
+import { SmilePlus, MoreHorizontal, Zap } from 'lucide-react';
 import { EmojiPicker } from './EmojiPicker';
 import { ReactionGlyph } from './EmojiText';
 import { useEmojiFavourites } from '@/hooks/useEmojiFavourites';
@@ -74,8 +74,11 @@ export function ReactionRow({ reactions, mySlot, mine, onToggle }: ReactionRowPr
           Solid rather than glass: this sits over a bubble edge, and a
           translucent surface against a gradient reads as a smudge. */}
       <div
-        className="flex items-center gap-0.5 rounded-full border border-border
-                   bg-surface-raised px-1 py-0.5 shadow-lift"
+        className={cn(
+          'flex max-w-[17rem] flex-wrap items-center gap-1 rounded-2xl border border-border',
+          'bg-surface-raised px-1.5 py-1 shadow-lift',
+          mine ? 'justify-end' : 'justify-start',
+        )}
       >
         {[...grouped.entries()].map(([emoji, { count, includesMe }]) => (
           <button
@@ -91,7 +94,10 @@ export function ReactionRow({ reactions, mySlot, mine, onToggle }: ReactionRowPr
             }
             aria-pressed={includesMe}
             className={cn(
-              'flex items-center gap-0.5 rounded-full px-1 py-0.5 text-xs leading-none',
+              'flex items-center gap-1 rounded-full px-2.5 py-1 text-base leading-none',
+              // No entry animation and only a slight hover growth: chips sit
+              // close together in a shared pill, so anything bigger overlaps
+              // its neighbours instead of reading as emphasis.
               'transition-transform duration-150 ease-spring hover:scale-110',
               // Your own reactions get a tinted backing rather than a border —
               // inside a shared pill a per-emoji border would fight the
@@ -99,7 +105,7 @@ export function ReactionRow({ reactions, mySlot, mine, onToggle }: ReactionRowPr
               includesMe && 'bg-accent-solid/35',
             )}
           >
-            <ReactionGlyph value={emoji} size={14} />
+            <ReactionGlyph value={emoji} size={22} />
             {count > 1 && (
               <span className={cn('tabular-nums', includesMe ? 'text-white' : 'text-secondary')}>
                 {count}
@@ -117,6 +123,11 @@ interface ReactionPickerProps {
   current: string[];
   onPick: (emoji: string) => void;
   onClose: () => void;
+  /** Opens the "more actions" menu (copy/pin/edit). The touch entry point. */
+  onMore?: () => void;
+  /** Applies the quick-react preset in one tap. Absent when none is configured. */
+  onBulk?: () => void;
+  bulkCount?: number;
 }
 
 /**
@@ -127,7 +138,15 @@ interface ReactionPickerProps {
  * state, and syncing them would write your emoji habits into the database for
  * no benefit.
  */
-export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPickerProps) {
+export function ReactionPicker({
+  mine,
+  current,
+  onPick,
+  onClose,
+  onMore,
+  onBulk,
+  bulkCount,
+}: ReactionPickerProps) {
   const [fullOpen, setFullOpen] = useState(false);
   const { favourites } = useEmojiFavourites();
   const { emojis } = useCustomEmoji();
@@ -201,8 +220,11 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
     <div
       ref={rootRef}
       className={cn(
-        'glass animate-rise absolute bottom-full z-30 mb-1 flex items-center gap-0.5',
-        'rounded-full border border-border px-1.5 py-1 shadow-lift',
+        'glass animate-scale-in stagger absolute bottom-full z-30 mb-1 flex items-center gap-1',
+        'rounded-full border border-border px-2 py-1.5 shadow-lift',
+        // Anchored on the side nearest the bubble so it grows OUTWARD into the
+        // empty space, never back over the message: right-anchored for your own
+        // (right-aligned) messages, left-anchored for the other person's.
         mine ? 'right-0 sm:right-full sm:mr-1' : 'left-0 sm:left-full sm:ml-1',
       )}
     >
@@ -216,7 +238,7 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
           aria-label={`React ${emoji}`}
           aria-pressed={current.includes(emoji)}
           className={cn(
-            'flex size-8 items-center justify-center rounded-full text-lg',
+            'flex size-10 items-center justify-center rounded-full text-2xl',
             'transition-transform duration-150 ease-spring hover:scale-125',
             current.includes(emoji) && 'bg-accent-solid/30',
           )}
@@ -229,7 +251,7 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
           favourites. A newly uploaded emoji is the one you most want to use, so
           recency beats alphabetical here — unlike the manager, which sorts by
           name because there you are looking something up. */}
-      {quickCustom.length > 0 && <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />}
+      {quickCustom.length > 0 && <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />}
       {quickCustom.map((emoji) => (
         <button
           key={emoji.id}
@@ -240,7 +262,7 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
           aria-label={`React :${emoji.name}:`}
           aria-pressed={current.includes(`custom:${emoji.id}`)}
           className={cn(
-            'flex size-8 items-center justify-center rounded-full',
+            'flex size-10 items-center justify-center rounded-full',
             'transition-transform duration-150 ease-spring hover:scale-125',
             current.includes(`custom:${emoji.id}`) && 'bg-accent-solid/30',
           )}
@@ -249,12 +271,12 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
             src={emoji.url}
             alt=""
             aria-hidden
-            className="size-5 object-contain"
+            className="size-7 object-contain"
           />
         </button>
       ))}
 
-      <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+      <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
 
       <button
         type="button"
@@ -262,11 +284,49 @@ export function ReactionPicker({ mine, current, onPick, onClose }: ReactionPicke
           setFullOpen(true);
         }}
         aria-label="Choose another emoji"
-        className="press flex size-8 items-center justify-center rounded-full text-secondary
+        className="press flex size-10 items-center justify-center rounded-full text-secondary
                    hover:bg-surface-raised hover:text-accent"
       >
-        <SmilePlus size={16} aria-hidden />
+        <SmilePlus size={19} aria-hidden />
       </button>
+
+      {/* Quick-react: apply the whole preset at once. Same action as the ⚡ in
+          the desktop hover bar, surfaced here for touch. */}
+      {onBulk && (bulkCount ?? 0) > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            onBulk();
+            onClose();
+          }}
+          aria-label={`Quick-react with ${String(bulkCount)} emoji`}
+          className="press flex size-10 items-center justify-center rounded-full text-secondary
+                     hover:bg-surface-raised hover:text-accent"
+        >
+          <Zap size={19} aria-hidden />
+        </button>
+      )}
+
+      {/* Touch entry point into the more-actions menu (copy/pin/edit). On
+          desktop those live in the ⋯ button beside reply and react; on touch
+          there is no hover bar, so the picker carries the handoff. */}
+      {onMore && (
+        <>
+          <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
+          <button
+            type="button"
+            onClick={() => {
+              onMore();
+              onClose();
+            }}
+            aria-label="More actions"
+            className="press flex size-10 items-center justify-center rounded-full text-secondary
+                       hover:bg-surface-raised hover:text-accent"
+          >
+            <MoreHorizontal size={19} aria-hidden />
+          </button>
+        </>
+      )}
     </div>
   );
 }

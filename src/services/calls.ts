@@ -34,12 +34,79 @@ import { AppError } from '@/utils/result';
  * to "two paired devices exchanged some ciphertext".
  */
 
+/** The peer's own mic/camera state, carried over the data channel. */
+export interface PeerMeta {
+  readonly muted: boolean;
+  readonly cameraOff: boolean;
+}
+
 export interface CallSession {
   readonly id: string;
   readonly kind: CallKind;
   readonly pc: RTCPeerConnection;
   readonly localStream: MediaStream;
+  /** Tell the peer our current mic/camera state. */
+  sendMeta: (meta: PeerMeta) => void;
   close: () => Promise<void>;
+}
+
+/**
+ * A tiny data channel carrying each side's mic/camera state.
+ *
+ * WebRTC does not tell the far end that a track was disabled — `track.enabled =
+ * false` just sends black frames or silence — so "the other person muted" has
+ * to be signalled explicitly. The channel rides the existing peer connection
+ * (DTLS-encrypted like the media) and carries only two booleans, so it needs no
+ * application-level encryption of its own.
+ *
+ * The caller creates the channel before the offer so it is negotiated up front;
+ * the callee receives it via `ondatachannel`. On open, each side sends its
+ * current state so a party who muted before connecting is shown correctly.
+ */
+function setupMetaChannel(
+  pc: RTCPeerConnection,
+  isCaller: boolean,
+  onPeerMeta: (meta: PeerMeta) => void,
+): { send: (meta: PeerMeta) => void } {
+  let channel: RTCDataChannel | null = null;
+  let latest: PeerMeta = { muted: false, cameraOff: false };
+
+  const wire = (ch: RTCDataChannel) => {
+    channel = ch;
+    ch.onopen = () => {
+      try {
+        ch.send(JSON.stringify(latest));
+      } catch {
+        // A closed channel just means the call is ending.
+      }
+    };
+    ch.onmessage = (event: MessageEvent<string>) => {
+      try {
+        const parsed = JSON.parse(event.data) as Partial<PeerMeta>;
+        onPeerMeta({ muted: Boolean(parsed.muted), cameraOff: Boolean(parsed.cameraOff) });
+      } catch {
+        // Ignore anything that is not the expected shape.
+      }
+    };
+  };
+
+  if (isCaller) wire(pc.createDataChannel('meta'));
+  else pc.ondatachannel = (event) => {
+    wire(event.channel);
+  };
+
+  return {
+    send: (meta: PeerMeta) => {
+      latest = meta;
+      if (channel && channel.readyState === 'open') {
+        try {
+          channel.send(JSON.stringify(meta));
+        } catch {
+          // Dropped state update; the next toggle will resend.
+        }
+      }
+    },
+  };
 }
 
 function createPeerConnection(): RTCPeerConnection {
@@ -126,12 +193,16 @@ export async function place(
   kind: CallKind,
   onRemoteStream: (stream: MediaStream) => void,
   onStateChange: (state: RTCPeerConnectionState) => void,
+  onPeerMeta: (meta: PeerMeta) => void,
 ): Promise<CallSession> {
   const { db } = getServices();
 
   const localStream = await getLocalStream(kind);
   const pc = createPeerConnection();
   for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+
+  // Before the offer, so the channel is part of the initial negotiation.
+  const meta = setupMetaChannel(pc, true, onPeerMeta);
 
   const remoteStream = new MediaStream();
   pc.ontrack = (event) => {
@@ -179,6 +250,7 @@ export async function place(
     kind,
     pc,
     localStream,
+    sendMeta: meta.send,
     close: async () => {
       unsubscribeCall();
       unsubscribeCandidates();
@@ -195,12 +267,17 @@ export async function answer(
   callDoc: CallDoc,
   onRemoteStream: (stream: MediaStream) => void,
   onStateChange: (state: RTCPeerConnectionState) => void,
+  onPeerMeta: (meta: PeerMeta) => void,
 ): Promise<CallSession> {
   const { db } = getServices();
 
   const localStream = await getLocalStream(callDoc.kind);
   const pc = createPeerConnection();
   for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+
+  // The caller's channel arrives via ondatachannel; register before applying
+  // the offer so it is not missed.
+  const meta = setupMetaChannel(pc, false, onPeerMeta);
 
   const remoteStream = new MediaStream();
   pc.ontrack = (event) => {
@@ -231,6 +308,7 @@ export async function answer(
     kind: callDoc.kind,
     pc,
     localStream,
+    sendMeta: meta.send,
     close: async () => {
       unsubscribeCandidates();
       await teardown(callId, pc, localStream);
@@ -307,6 +385,7 @@ async function teardown(
   pc.onicecandidate = null;
   pc.ontrack = null;
   pc.onconnectionstatechange = null;
+  pc.ondatachannel = null;
   pc.close();
 
   const { db } = getServices();

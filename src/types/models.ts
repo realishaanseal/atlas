@@ -11,7 +11,7 @@ import type { B64, EncryptedEnvelope } from './crypto';
 
 export type ParticipantId = 'a' | 'b';
 
-export type MessageKind = 'text' | 'image' | 'audio' | 'call';
+export type MessageKind = 'text' | 'image' | 'audio' | 'call' | 'video';
 
 export type CallOutcome = 'completed' | 'missed' | 'declined';
 
@@ -68,6 +68,23 @@ export type MessagePayload = (
       chunks?: number;
     }
   | {
+      kind: 'video';
+      /** Document id in rooms/{roomId}/videos holding the encrypted bytes. */
+      videoId: string;
+      /** Per-clip content key, wrapped under the conversation key. */
+      wrappedKey: EncryptedEnvelope;
+      width: number;
+      height: number;
+      byteSize: number;
+      durationMs: number;
+      /** Constrained to a safe video allowlist on playback, never trusted raw. */
+      mime: string;
+      /** First frame, canvas-encoded to WebP and encrypted — the bubble poster. */
+      poster?: EncryptedEnvelope;
+      /** Documents this clip is split across; absent or 1 means a single doc. */
+      chunks?: number;
+    }
+  | {
       kind: 'audio';
       /** Document id in rooms/{roomId}/audio holding the encrypted bytes. */
       audioId: string;
@@ -110,6 +127,16 @@ export interface MessageDoc {
   readonly body: EncryptedEnvelope;
   /** Read receipt. Set by the recipient only; rules enforce that. */
   readonly readAt?: number;
+  /** When the sender last edited the text. Absent means never edited. */
+  readonly editedAt?: number;
+  /**
+   * The body as it was BEFORE the first edit, encrypted.
+   *
+   * Snapshotted once, on the first edit, and immutable after — so the edit
+   * history shows the true original however many times the message is later
+   * changed. Only the sender can write it, and only their own message.
+   */
+  readonly originalBody?: EncryptedEnvelope;
   /**
    * One reaction per participant, keyed by slot, each encrypted.
    *
@@ -131,6 +158,10 @@ export interface Message {
   readonly payload: MessagePayload;
   readonly state: DeliveryState;
   readonly readAt?: number;
+  /** When the message was last edited; drives the "edited" label. */
+  readonly editedAt?: number;
+  /** The original text, decrypted, shown when the edit history is opened. */
+  readonly originalText?: string;
   /**
    * Decrypted reactions, keyed by slot.
    *
@@ -184,6 +215,116 @@ export interface CustomEmoji {
  */
 export const CUSTOM_REACTION_PREFIX = 'custom:';
 
+/**
+ * A pinned message as Firestore holds it.
+ *
+ * Like custom emoji, this collection does NOT expire — a pin that vanished
+ * with the message would defeat the point of pinning. And because the original
+ * message IS swept after 24 hours, the pin cannot just reference it: the
+ * displayable content is snapshotted INTO the pin (encrypted) at pin time, the
+ * same trick `ReplyRef` uses so a quote outlives its original.
+ *
+ * The document id is the message id, which makes pinning idempotent (re-pinning
+ * writes the same id) and unpinning a plain delete.
+ */
+export interface PinDoc {
+  readonly owner: string;
+  /** When it was pinned; the rules bound this for clock-skew, nothing more. */
+  readonly pinnedAt: number;
+  /** Encrypted snapshot — see PinSnapshot. */
+  readonly snapshot: EncryptedEnvelope;
+}
+
+/**
+ * The nickname one participant gave the other, published so the OTHER can see
+ * what they are called.
+ *
+ * `usePeerName` keeps each person's label for their peer purely on-device; this
+ * document is the deliberate, one-directional exception. It lives at
+ * `nicknames/{slot}`, where `slot` is the SETTER's slot — so `nicknames/b`
+ * holds B's label for A, and only A reads it. The name is encrypted, like every
+ * other piece of content, so no plaintext label ever touches the database. No
+ * expiry: a nickname that evaporated every 24h would be pointless, same as
+ * emoji and pins.
+ */
+export interface NicknameDoc {
+  /** Encrypted nickname string (the setter's label for the other person). */
+  readonly name: EncryptedEnvelope;
+  /** Clock-skew bound only. */
+  readonly updatedAt: number;
+}
+
+/**
+ * Points at the media documents a pinned message depends on.
+ *
+ * Carried in the snapshot so unpinning knows which image/audio documents to
+ * restore to normal expiry — the panel can unpin a message that is not on
+ * screen, so the payload is not otherwise available at that moment.
+ */
+export interface PinMediaRef {
+  readonly kind: 'image' | 'audio' | 'video';
+  readonly id: string;
+  /** Image chunk count, when the image is split across documents. */
+  readonly chunks?: number;
+}
+
+/** The decrypted snapshot carried inside a PinDoc. */
+export interface PinSnapshot {
+  readonly sender: ParticipantId;
+  readonly kind: MessageKind;
+  /** Original send time, for display and ordering. */
+  readonly createdAt: number;
+  /** Full text for text messages, so the pin stays readable after the sweep. */
+  readonly text?: string;
+  /** Short label for the bar: an excerpt, or "Photo" / "Voice message". */
+  readonly preview: string;
+  /** Present for image and audio messages; drives media expiry restore. */
+  readonly media?: PinMediaRef;
+}
+
+/** A pin as the UI sees it: decrypted, with the message id it points at. */
+export interface Pin extends PinSnapshot {
+  /** Equal to the original message id — used to jump to it while it survives. */
+  readonly messageId: string;
+  readonly pinnedAt: number;
+}
+
+/**
+ * A shared doodle drawn over the conversation.
+ *
+ * Anchored to a message: its strokes are positioned relative to that message,
+ * so the drawing rides along as the chat scrolls and expires when the message
+ * does (24h). Synced and encrypted like everything else — a drawing is content.
+ *
+ * X coordinates are a fraction of the chat width (0–1), because the two devices
+ * have different widths; Y is pixels below the anchor, since line height is the
+ * same on both.
+ */
+export interface DoodleStroke {
+  readonly tool: 'pen' | 'brush';
+  readonly color: string;
+  readonly width: number;
+  /** Flat [x0, y0, x1, y1, …]; x is a 0–1 fraction of width, y is px. */
+  readonly pts: number[];
+}
+
+export interface DoodleDoc {
+  readonly owner: string;
+  /** The message this doodle is positioned against. */
+  readonly anchorId: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  /** Encrypted array of DoodleStroke. */
+  readonly data: EncryptedEnvelope;
+}
+
+export interface Doodle {
+  readonly id: string;
+  readonly anchorId: string;
+  readonly createdAt: number;
+  readonly strokes: DoodleStroke[];
+}
+
 /** Presence is deliberately coarse: no per-keystroke metadata leaks. */
 export interface PresenceDoc {
   /** Anonymous-auth uid of the device that owns this slot. */
@@ -192,6 +333,19 @@ export interface PresenceDoc {
   readonly lastSeen: number;
   /** Expires on its own so a crashed tab cannot appear "typing" forever. */
   readonly typingUntil: number;
+  /**
+   * A manually chosen "last seen" time, displayed to the peer INSTEAD of the
+   * real `lastSeen`.
+   *
+   * `lastSeen` itself cannot be faked: the Security Rules pin it to within a
+   * minute of the server clock, deliberately, so the staleness logic that drives
+   * the online indicator stays trustworthy. This is a separate, presentation-only
+   * field — the peer's client shows it when present, and everything else
+   * (heartbeats, staleness, delivery) keeps using the real value.
+   *
+   * Absent means "no override", which is the normal state.
+   */
+  readonly lastSeenOverride?: number;
 }
 
 /**
@@ -207,6 +361,13 @@ export interface RoomDoc {
   readonly createdAt: number;
   /** Anonymous-auth uid, or null if the slot is free. */
   readonly deviceA: string | null;
+  /**
+   * A SECOND device on the A side, so one person can be signed in on two
+   * devices (e.g. a laptop and a phone) at once. The B side stays single.
+   * Optional — rooms created before this existed simply do not have the field,
+   * which the rules tolerate.
+   */
+  readonly deviceA2?: string | null;
   readonly deviceB: string | null;
   /**
    * Epoch ms until which a new device may take over an occupied slot. Only an
@@ -215,6 +376,12 @@ export interface RoomDoc {
    * passphrase knowledge.
    */
   readonly repairUntil: number;
+  /**
+   * When set, the next device to join during the window fills the empty second
+   * A slot rather than taking over B — how "add another of my own devices"
+   * routes the newcomer to the right side.
+   */
+  readonly linkTarget?: 'a' | null;
 }
 
 /** Public KDF parameters plus the key verifier. Written once, never updated. */

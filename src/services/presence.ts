@@ -32,6 +32,17 @@ export const OFFLINE: PeerPresence = { online: false, lastSeen: 0, typing: false
 
 function interpret(data: PresenceDoc | undefined, now: number): PeerPresence {
   if (!data) return OFFLINE;
+
+  /**
+   * A peer who has set a manual last-seen is rendered from that value alone:
+   * shown as offline, at the time they chose. Their real heartbeat is ignored
+   * here — which is the entire point of the setting — while `lastSeen` itself
+   * stays honest in the document for anything that depends on it.
+   */
+  if (typeof data.lastSeenOverride === 'number') {
+    return { online: false, lastSeen: data.lastSeenOverride, typing: false };
+  }
+
   return {
     online: data.online && now - data.lastSeen < PRESENCE.OFFLINE_AFTER_MS,
     lastSeen: data.lastSeen,
@@ -71,9 +82,26 @@ export class PresenceWriter {
   private readonly slot: ParticipantId;
   private readonly uid: string;
 
+  /**
+   * A manually chosen last-seen time, or null for normal presence.
+   *
+   * While this is set the writer reports offline and never reports typing —
+   * broadcasting "Online" or "Typing…" alongside a last-seen of three hours ago
+   * would contradict itself immediately. Messaging is unaffected; only what the
+   * peer is shown changes.
+   */
+  private lastSeenOverride: number | null = null;
+
   constructor(slot: ParticipantId, uid: string) {
     this.slot = slot;
     this.uid = uid;
+  }
+
+  /** Sets or clears the manual last-seen, and republishes immediately. */
+  setLastSeenOverride(value: number | null): void {
+    this.lastSeenOverride = value;
+    if (value !== null) this.typingUntil = 0;
+    void this.write(this.heartbeat !== null);
   }
 
   start(): void {
@@ -85,6 +113,9 @@ export class PresenceWriter {
 
   /** Debounced. A fast typist produces ~1 write/2.5s, not one per keystroke. */
   noteTyping(): void {
+    // Silent while a manual last-seen is set: a "Typing…" indicator from someone
+    // who was supposedly last seen hours ago gives the whole thing away.
+    if (this.lastSeenOverride !== null) return;
     const now = Date.now();
     this.typingUntil = now + PRESENCE.TYPING_TTL_MS;
     if (now - this.lastTypingWrite < PRESENCE.TYPING_WRITE_INTERVAL_MS) return;
@@ -106,12 +137,17 @@ export class PresenceWriter {
 
   private async write(online: boolean): Promise<void> {
     const { db } = getServices();
+    const override = this.lastSeenOverride;
     try {
       await setDoc(doc(db, paths.presence(this.slot)), {
         owner: this.uid,
-        online,
+        // Never report online while an override is set.
+        online: override === null ? online : false,
+        // The real clock, always. The rules require it and the staleness logic
+        // depends on it; the override is a separate, display-only field.
         lastSeen: Date.now(),
-        typingUntil: this.typingUntil,
+        typingUntil: override === null ? this.typingUntil : 0,
+        ...(override === null ? {} : { lastSeenOverride: override }),
       } satisfies PresenceDoc);
     } catch (error) {
       // Presence is best-effort: a failed heartbeat must never surface to the

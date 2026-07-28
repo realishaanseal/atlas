@@ -32,7 +32,7 @@ If presence latency turns out to feel bad in Phase 4, the fallback is to add RTD
 
 Both people type the **same passphrase**. PBKDF2-HMAC-SHA256, 900,000 iterations, over a 16-byte random salt stored publicly in `rooms/{id}/meta/kdf`. Output: a 256-bit AES-GCM key, created with `extractable: false` so it can never be read back out of the browser — not by an XSS payload, not by our own code.
 
-Why PBKDF2 and not Argon2id: Argon2 is the better KDF, but there's no native Web Crypto implementation, so it means shipping a ~40 KB WASM blob and hand-rolling the memory-hard parameters. For a two-person app where the realistic attacker is "someone who found the hosting URL", PBKDF2 at a high iteration count is a proportionate cost. (Settled at 2,000,000 after measurement — see `src/config.ts`; the original 900k estimate assumed ~800ms on desktop, where the real figure was 84ms, because OpenSSL's SHA-256 is far more optimised than assumed.) I'd revisit this in Phase 7 if you want it; the `KdfParams.v` version field exists precisely so we can migrate without breaking old messages.
+Why PBKDF2 and not Argon2id: Argon2 is the better KDF, but there's no native Web Crypto implementation, so it means shipping a ~40 KB WASM blob and hand-rolling the memory-hard parameters. For a two-person app where the realistic attacker is "someone who found the Netlify URL", 900k PBKDF2 iterations (~800ms on a mid-range phone) is a proportionate cost. I'd revisit this in Phase 7 if you want it; the `KdfParams.v` version field exists precisely so we can migrate without breaking old messages.
 
 **The passphrase is everything.** Say it plainly: this design has no forward secrecy and no post-compromise security. Anyone who learns the passphrase can decrypt every message they ever captured. That's the trade you accepted for zero key exchange, and it's the right trade for two people who can agree on a passphrase in person once. Practical consequence: the passphrase should be a long random phrase from a password manager, not something memorable.
 
@@ -174,7 +174,7 @@ Confirmed 18 Jul 2026. Each is now part of the phase plan rather than a suggesti
 
 5. **"Automatic retry after temporary disconnect"** needs an outbox. A message composed while offline should persist to IndexedDB and flush on reconnect, otherwise a backgrounded mobile tab silently drops it. Adds a `pending` delivery state (already in the type model). *(Phase 4.)*
 
-6. **Free hosting has no password protection.** Neither Netlify nor Firebase Hosting gates a site behind a password on the free tier, so the URL is publicly reachable and the lock screen is the only barrier. Already accounted for — it's why the app looks like nothing, ships `noindex`, and denies everything by default in rules — but worth stating explicitly rather than discovering later.
+6. **Netlify Free has no password protection.** Site-level password gating is a paid feature, so the URL is publicly reachable and the lock screen is the only barrier. Already accounted for — it's why the app looks like nothing, ships `noindex`, and denies everything by default in rules — but worth stating explicitly rather than discovering later.
 
 ---
 
@@ -239,6 +239,7 @@ rather than a fix for a real gap.
 │   └── main.tsx
 ├── firestore.rules
 ├── firebase.json
+├── netlify.toml
 └── .env.example
 ```
 
@@ -470,48 +471,3 @@ you only see messages while the tab is open. FCM is free on Spark, but the
 notification could only say "New message", since the service worker has no key
 and cannot decrypt a preview. On iOS it also requires the site be installed to
 the home screen.
-
-
----
-
-## 12. Custom emoji
-
-Added after the main build. Uploaded images, referenced in messages as
-`:shortcode:` and usable as reactions, shared between both devices.
-
-**The one collection with no expiry.** Everything else in the app carries
-`expiresAt` and is swept after 24 hours. An emoji pack that did that would be
-pointless, so `emojis` documents have no expiry field at all and the rules
-deliberately do not apply `validRetention` to them. This is the single
-exception to the retention model and is called out in `firestore.rules` at the
-match block.
-
-**Names are encrypted, not just the artwork.** Storing shortcodes in plaintext
-would have been easier — the autocomplete could read them without a key — but a
-readable list of `:inside_joke:` names is an index of what two people talk
-about, which is exactly what the rest of the app refuses to hand over.
-
-**Reactions needed no schema change.** Reactions were already an encrypted
-array of strings, and the Security Rules validate the envelope rather than
-reading inside it, so a custom emoji is carried as the string
-`custom:<documentId>`. No migration, no rules change.
-
-Two things that follow from that, both non-obvious:
-
-- The reference stores the **id, not the name**. Resolving by name at render
-  time would break the moment an emoji was renamed or both people independently
-  added the same shortcode.
-- `decryptReactions` had an 8-character cap per entry, to stop a peer smuggling
-  a payload through a field that renders directly into the UI. A `custom:` id
-  is ~29 characters, so it is matched against the id grammar explicitly rather
-  than by raising the cap — raising it to 30 would have re-admitted exactly what
-  the bound existed to prevent.
-
-**Known gap:** the 100-emoji cap is client-side only. Security Rules cannot
-cheaply count a collection, so a modified client could exceed it. The exposure
-is storage quota rather than confidentiality, and it is bounded by the same
-trust as everything else — only a paired device can write at all.
-
-**Static images are canvas re-encoded** (which strips EXIF, as with photos);
-**animated GIFs are not**, because a canvas yields one still frame. GIF emoji
-are therefore stored byte-for-byte, not resized, and rejected above 256 KB.

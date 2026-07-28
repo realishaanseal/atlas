@@ -52,6 +52,13 @@
      to. A single blue radial reads as a spotlight; two hues read as depth. */
   --color-accent-alt: #6d5cf5;
 
+  /* Ambient glow colours, referenced by the body background and the glow
+     shadows. Named separately from the accents so a theme can retint the whole
+     ambient field by overriding just these two on :root. Defaults match the
+     original hardcoded blues, so the untouched app looks identical. */
+  --glow-a: #2f6fe0;
+  --glow-b: #6d5cf5;
+
   --color-text: #f5f7fc;
   --color-secondary: #a8b2c8;
   --color-muted: #8d97ad;
@@ -81,14 +88,23 @@
   --shadow-lift:
     0 2px 4px rgb(4 6 16 / 0.6), 0 16px 40px -16px rgb(4 6 16 / 0.8),
     0 0 0 1px rgb(77 148 255 / 0.06);
-  --shadow-glow: 0 4px 16px -4px rgb(47 111 224 / 0.5), 0 0 0 1px rgb(77 148 255 / 0.18);
+  --shadow-glow:
+    0 4px 16px -4px color-mix(in oklab, var(--glow-a) 50%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 22%, transparent);
   --shadow-glow-strong:
-    0 6px 24px -4px rgb(47 111 224 / 0.65), 0 0 0 1px rgb(109 166 255 / 0.3);
+    0 6px 24px -4px color-mix(in oklab, var(--glow-a) 65%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 34%, transparent);
 
   /* Motion. `soft` for most things; `spring` overshoots slightly and is what
-     makes a button press feel physical rather than merely animated. */
+     makes a button press feel physical rather than merely animated.
+
+     `bounce` overshoots hard — reserved for things that should feel like they
+     LANDED (a reaction chip, a message arriving). `snap` is the opposite: fast
+     out, no overshoot, for things that should feel instant and mechanical. */
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.18, 1.9, 0.42, 1);
+  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* --------------------------------------------------------------------------- */
@@ -99,10 +115,18 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Height falls through three tiers, weakest first: percentage, then dvh,
+     then the measured `--app-height` that utils/viewport.ts keeps in sync with
+     the VisualViewport.
+
+     The JS value wins because `100dvh` is resolved once at load, and a PWA
+     started from a home-screen shortcut frequently reports it before the system
+     bars have settled — leaving the app taller than the screen with the
+     composer below the fold until you kill it from recents. The variable is
+     re-measured as things settle, so it self-corrects instead. */
   html,
   body,
   #root {
-    height: 100dvh;
     height: 100%;
   }
 
@@ -112,6 +136,12 @@
     #root {
       height: 100dvh;
     }
+  }
+
+  html,
+  body,
+  #root {
+    height: var(--app-height, 100dvh);
   }
 
   body {
@@ -131,22 +161,22 @@
     background-image:
       radial-gradient(
         ellipse 80% 60% at 15% -10%,
-        rgb(47 111 224 / 0.28) 0%,
+        color-mix(in oklab, var(--glow-a) 28%, transparent) 0%,
         transparent 60%
       ),
       radial-gradient(
         ellipse 70% 50% at 85% 0%,
-        rgb(109 92 245 / 0.22) 0%,
+        color-mix(in oklab, var(--glow-b) 22%, transparent) 0%,
         transparent 55%
       ),
       radial-gradient(
         ellipse 90% 60% at 50% 105%,
-        rgb(47 111 224 / 0.18) 0%,
+        color-mix(in oklab, var(--glow-a) 18%, transparent) 0%,
         transparent 60%
       ),
       radial-gradient(
         ellipse 50% 40% at 90% 80%,
-        rgb(109 92 245 / 0.12) 0%,
+        color-mix(in oklab, var(--glow-b) 12%, transparent) 0%,
         transparent 60%
       ),
       linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
@@ -178,6 +208,73 @@
   *::-webkit-scrollbar-thumb {
     background-color: var(--color-border-strong);
     border-radius: 4px;
+  }
+
+  /* -------------------------------------------------------------------------
+     Phone sizing.
+
+     Every dimension in this app is expressed in rem — Tailwind's spacing scale,
+     the type sizes, `size-10` on the icon buttons — so raising the root font
+     size scales the ENTIRE interface proportionally from one declaration,
+     rather than needing a `sm:` variant on several hundred utilities.
+
+     This is what makes the app usable in a phone's normal (mobile) rendering
+     mode, so there is no need to force "desktop site" — which renders at a
+     ~980px viewport and then shrinks it, making everything tiny and the tap
+     targets impossible.
+
+     Overflow is not a risk: the few fixed widths in the app are all capped in
+     vw or `max-w`, so they cannot grow past the screen.
+  ------------------------------------------------------------------------- */
+  @media (max-width: 640px) {
+    :root {
+      font-size: 17.5px;
+    }
+  }
+
+  /* Very narrow phones — scale back so the header controls still fit on one row. */
+  @media (max-width: 380px) {
+    :root {
+      font-size: 16px;
+    }
+  }
+
+  html {
+    /* Stops Android/iOS inflating text in ways that break the layout. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Touch devices. `manipulation` removes the ~300ms double-tap-zoom delay, so
+     every tap registers immediately instead of feeling laggy. */
+  @media (pointer: coarse) {
+    button,
+    [role='button'],
+    [role='menuitem'],
+    a,
+    label,
+    input,
+    textarea {
+      touch-action: manipulation;
+    }
+
+    /* A long press on a message opens the reaction picker. The browser's OWN
+       long-press — text selection and the copy callout — fires at the same
+       moment and wins, which is why reacting on a phone felt broken. Suppressing
+       it on the message row makes the gesture reliable; the text is still
+       copyable through the message menu's Copy item. */
+    [role='listitem'] {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Inputs must stay selectable. */
+    [role='listitem'] input,
+    [role='listitem'] textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
   }
 
   /* Honour the OS-level reduced-motion setting. Non-negotiable. */
@@ -234,8 +331,25 @@
     animation: rise 260ms var(--ease-spring) both;
   }
 
+  /* NOTE on fill-mode, and it is load-bearing.
+     A filling animation keeps its final transform applied FOREVER, at a higher
+     priority than both inline styles and `:hover` rules. On a bubble that would
+     freeze `transform: none` and silently kill swipe-to-reply (which sets an
+     inline translateX); on a chip it would block the hover scale. So anything
+     animating an element that is later transformed by something else uses
+     `backwards` — identical on the way in, but it lets go when it finishes. */
   .animate-bubble-in {
-    animation: bubble-in 280ms var(--ease-spring) both;
+    animation: bubble-in 280ms var(--ease-spring) backwards;
+  }
+
+  /* Directional arrivals: your own messages fly in from the send button's side,
+     theirs from the opposite edge. Same duration, mirrored origin — the message
+     appears to come FROM somewhere rather than fade in place. */
+  .animate-bubble-mine {
+    animation: bubble-mine 340ms var(--ease-spring) backwards;
+  }
+  .animate-bubble-theirs {
+    animation: bubble-theirs 340ms var(--ease-spring) backwards;
   }
 
   /* Press feedback. Applied to interactive elements so the whole app responds
@@ -249,6 +363,154 @@
   }
   .press:active:not(:disabled) {
     transform: scale(0.94);
+  }
+
+  /* -------------------------------------------------------------------------
+     Motion vocabulary.
+
+     Every effect below is pure compositor work — transform, opacity, filter —
+     so none of it triggers layout and none of it costs a Firebase read. The
+     reduced-motion block in @layer base neutralises all of it for anyone who
+     asks the OS to stop animations.
+  ------------------------------------------------------------------------- */
+
+  /* A panel arriving: scales up from slightly small while fading in. Used by
+     modals and popovers, so they read as expanding out of the surface rather
+     than being pasted over it. */
+  .animate-scale-in {
+    animation: scale-in 220ms var(--ease-spring) both;
+  }
+
+  /* Backdrop behind a modal. Separate from the panel so the blur can ramp in
+     more slowly than the panel scales — the panel should feel ahead of it. */
+  .animate-backdrop {
+    animation: backdrop-in 260ms var(--ease-soft) both;
+  }
+
+  /* Something landing with weight: overshoot then settle. Reaction chips,
+     badges, anything that "pops" into being. */
+  /* `backwards`, not `both` — a reaction chip is hover-scaled and press-scaled
+     afterwards, and a filling animation would outrank both. See the note above. */
+  .animate-pop {
+    animation: pop 320ms var(--ease-bounce) backwards;
+  }
+
+  /* Menu items cascading in. Applied to the CONTAINER; children stagger
+     themselves. Capped at eight — past that the last item feels late. */
+  /* `backwards` so the delay still holds each item hidden before its turn, but
+     the finished state releases — menu items and quick-react buttons are
+     hover-scaled, and a filling animation would freeze them. */
+  .stagger > * {
+    animation: slide-in 240ms var(--ease-snap) backwards;
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 15ms;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 65ms;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 90ms;
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: 115ms;
+  }
+  .stagger > *:nth-child(6) {
+    animation-delay: 140ms;
+  }
+  .stagger > *:nth-child(7) {
+    animation-delay: 160ms;
+  }
+  .stagger > *:nth-child(n + 8) {
+    animation-delay: 180ms;
+  }
+
+  /* Icon that turns when its parent (a `group`) is hovered or open. The
+     settings gear, the attach plus. */
+  .icon-turn {
+    transition: transform 420ms var(--ease-spring);
+  }
+  .group:hover .icon-turn,
+  .group[data-open='true'] .icon-turn {
+    transform: rotate(90deg);
+  }
+  .icon-turn-full {
+    transition: transform 520ms var(--ease-spring);
+  }
+  .group:hover .icon-turn-full,
+  .group[data-open='true'] .icon-turn-full {
+    transform: rotate(180deg);
+  }
+
+  /* The send button firing. A quick squash-and-launch on the icon, run by
+     toggling the class for one animation cycle. */
+  .animate-launch {
+    animation: launch 420ms var(--ease-spring);
+  }
+
+  /* Expanding ring left behind by a press — the "something happened" cue for
+     send and quick-react. Purely decorative, pointer-events none at the call
+     site. */
+  .animate-ring {
+    animation: ring 520ms var(--ease-soft) both;
+  }
+
+  /* Lift on hover for cards and list rows. */
+  .hover-lift {
+    transition:
+      transform 220ms var(--ease-spring),
+      box-shadow 220ms var(--ease-soft);
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* A slow drift, for ambient decoration only. */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Living gradient. The background is oversized and slides, so a "solid"
+     accent surface subtly moves — used on primary buttons. */
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-drift 6s ease infinite;
+  }
+
+  /* Attention pulse: a ring that breathes outward. Pings, active call. */
+  .animate-pulse-ring {
+    animation: pulse-ring 2s ease-out infinite;
+  }
+
+  /* Refusal / error shake. */
+  .animate-shake {
+    animation: shake 420ms var(--ease-soft);
+  }
+
+  /* A glow that swells and fades once — confirmation without a toast. */
+  .animate-flash {
+    animation: flash 620ms var(--ease-soft) both;
+  }
+
+  /* Unlock transition.
+
+     The lock screen pushes THROUGH the viewer — scaling up past the frame and
+     blurring out, as though the camera moved through it — while the
+     conversation resolves from slightly behind. Scaling the lock up rather than
+     down is what sells "you went inside" instead of "a dialog closed".
+
+     `forwards` on the exit is deliberate: it must hold the invisible final
+     state for the moment between the animation ending and React unmounting it,
+     or it would flash back to full opacity. */
+  .animate-lock-out {
+    animation: lock-out 520ms var(--ease-soft) forwards;
+  }
+
+  .animate-app-in {
+    animation: app-in 620ms var(--ease-soft) backwards;
   }
 }
 
@@ -267,6 +529,28 @@
   from {
     opacity: 0;
     transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bubble-mine {
+  from {
+    opacity: 0;
+    transform: translate(14px, 12px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bubble-theirs {
+  from {
+    opacity: 0;
+    transform: translate(-14px, 12px) scale(0.9);
   }
   to {
     opacity: 1;
@@ -307,5 +591,186 @@
   50% {
     opacity: 0.85;
     transform: scale(1.08);
+  }
+}
+
+/* --- motion vocabulary keyframes ----------------------------------------- */
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Squash, then throw. The icon dips back before it launches, which is what
+   makes it read as effort rather than a slide. */
+@keyframes launch {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-2px, 3px) scale(0.86);
+  }
+  60% {
+    transform: translate(6px, -10px) scale(1.06);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ring {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes gradient-drift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes lock-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+  35% {
+    /* A breath inward first — the wind-up before it lets go. */
+    transform: scale(0.97);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+    filter: blur(12px);
+  }
+}
+
+@keyframes app-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: blur(6px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent) 55%, transparent);
+  }
+  40% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--color-accent) 22%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
   }
 }

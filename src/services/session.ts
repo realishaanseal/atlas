@@ -89,4 +89,5 @@ export async function unlock(passphrase: string): Promise<UnlockedSession> {
 }
 
 export const openRepairWindow = room.openRepairWindow;
+export const openLinkWindow = room.openLinkWindow;
 export const releaseSlot = room.releaseSlot;

@@ -93,7 +93,7 @@ export function EmojiPicker({
       role="dialog"
       aria-label="Choose an emoji"
       className={cn(
-        'animate-rise absolute z-30 w-[min(22rem,84vw)] overflow-hidden rounded-md',
+        'animate-scale-in absolute z-30 w-[min(22rem,84vw)] overflow-hidden rounded-md',
         // Near-opaque, not glass: this panel is a dense grid of glyphs and
         // sits over message bubbles. At normal glass opacity the content
         // behind reads through it as ghosting.

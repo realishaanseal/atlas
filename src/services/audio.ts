@@ -103,18 +103,35 @@ const SAFE_AUDIO_MIME = new Set([
   'audio/ogg;codecs=opus',
 ]);
 
-/** Returns an object URL. Callers must revoke it — see useAudio. */
-export async function download(
+/**
+ * Decrypts a voice clip to raw bytes.
+ *
+ * Exposed separately from `download` so the local archive can persist the clip
+ * itself — the archive keeps the memory past the 24h sweep, so it needs the
+ * bytes, not a throwaway object URL. Throws once the clip has been swept.
+ */
+export async function downloadBytes(
   conversationKey: CryptoKey,
   payload: AudioPayload,
-): Promise<string> {
+): Promise<Uint8Array> {
   const { db } = getServices();
   const snapshot = await getDoc(doc(db, paths.audioClip(payload.audioId)));
   if (!snapshot.exists()) throw new AppError('unknown', 'Recording is no longer available');
 
   const contentKey = await unwrapKey(conversationKey, payload.wrappedKey);
-  const bytes = await decrypt(contentKey, (snapshot.data() as { data: EncryptedEnvelope }).data);
+  return decrypt(contentKey, (snapshot.data() as { data: EncryptedEnvelope }).data);
+}
 
-  const mime = SAFE_AUDIO_MIME.has(payload.mime) ? payload.mime : 'audio/webm';
-  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+/** The blob MIME, constrained to the known-safe allowlist. See SAFE_AUDIO_MIME. */
+export function safeAudioMime(mime: string): string {
+  return SAFE_AUDIO_MIME.has(mime) ? mime : 'audio/webm';
+}
+
+/** Returns an object URL. Callers must revoke it — see useAudio. */
+export async function download(
+  conversationKey: CryptoKey,
+  payload: AudioPayload,
+): Promise<string> {
+  const bytes = await downloadBytes(conversationKey, payload);
+  return URL.createObjectURL(new Blob([bytes], { type: safeAudioMime(payload.mime) }));
 }

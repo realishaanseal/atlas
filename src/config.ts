@@ -116,6 +116,53 @@ export const GIF_STORAGE = {
 } as const;
 
 /**
+ * Video budget.
+ *
+ * Videos cannot be re-encoded in the browser the way photos are (there is no
+ * cheap canvas transcode for video), so they are stored byte-for-byte like
+ * GIFs — chunked across Firestore documents and reassembled on download. That
+ * means, also like GIFs, no metadata is stripped: a clip could carry location
+ * data. Accepted for a private two-person chat; the alternative is shipping a
+ * transcoder, which is disproportionate.
+ *
+ * The cap is deliberately modest. Every chunk is a write for the sender and a
+ * read for the recipient, and the free tier's daily quotas (20k writes / 50k
+ * reads) are what set the ceiling — not storage, since clips are swept at 24h
+ * like everything else. A poster frame (first frame, canvas-encoded to WebP) is
+ * captured on upload so the bubble shows a still with a play button before the
+ * full clip is fetched.
+ */
+export const VIDEO = {
+  /** Reuse the image chunk size — ~800 KB base64, under the 1 MiB doc cap. */
+  CHUNK_BYTES: 600 * 1024,
+  /** 45 chunks ≈ 27 MB. A short phone clip fits; a long one is refused. */
+  MAX_CHUNKS: 45,
+  get MAX_BYTES() {
+    return this.CHUNK_BYTES * this.MAX_CHUNKS;
+  },
+  /** What the file picker accepts before any processing. */
+  MAX_UPLOAD_BYTES: 25 * 1024 * 1024,
+  ACCEPTED_MIME: ['video/mp4', 'video/webm', 'video/quicktime'] as const,
+  /**
+   * Poster frame, canvas-encoded to WebP, encrypted and carried INLINE in the
+   * message body. The body is capped at 16 KB of ciphertext (see firestore.rules
+   * `validEnvelope(body, 16384)`), so the poster is deliberately small and is
+   * dropped entirely if even the lowest setting won't fit — the play button
+   * still works without it. Dimensions are tried largest-first, then a quality
+   * ladder, until the encoded frame lands under POSTER_MAX_BYTES.
+   */
+  POSTER_DIMENSIONS: [240, 160] as const,
+  POSTER_QUALITY_STEPS: [0.6, 0.5, 0.4, 0.3] as const,
+  /**
+   * Plaintext ceiling for the poster. The poster is encrypted, then that
+   * envelope sits inside the payload which is encrypted AGAIN into the body, so
+   * 6 KB here lands the body around 11 KB of ciphertext — a wide margin under
+   * the 16 KB cap even after the double base64 inflation.
+   */
+  POSTER_MAX_BYTES: 6 * 1024,
+} as const;
+
+/**
  * Custom emoji.
  *
  * Uploaded images, referenced in messages by `:shortcode:` and usable as
@@ -162,6 +209,64 @@ export const EMOJI = {
   JUMBO_MAX_COUNT: 6,
 } as const;
 
+/**
+ * Pinned messages.
+ *
+ * Stored in a non-expiring collection like custom emoji, because a pin that
+ * evaporated with its message after 24 hours would be pointless. The message's
+ * displayable content is snapshotted into the pin at pin time, so it survives
+ * the original being swept.
+ *
+ * The count cap is enforced client-side only — the Security Rules cannot count
+ * a collection cheaply, the same limitation noted for emoji. The exposure is
+ * storage quota, not confidentiality.
+ */
+export const PINS = {
+  MAX_COUNT: 50,
+  /** Excerpt length shown in the bar and list. */
+  PREVIEW_LENGTH: 140,
+  /** Hard cap on stored text, matching the message text ceiling. */
+  MAX_TEXT: 4000,
+  /**
+   * Expiry stamped on a pinned message (and its media) so the retention sweep
+   * skips it: ~year 3000, i.e. "never" for any practical purpose.
+   *
+   * A pinned message is not copied out of the messages collection — it stays in
+   * place with its expiry pushed here, so it remains in the timeline, in order,
+   * and jumpable. Unpinning restores expiresAt to createdAt + 24h, at which
+   * point the ordinary sweep collects it if it is already past due.
+   *
+   * This exact value is also hardcoded in firestore.rules; the two must agree.
+   */
+  KEEP_UNTIL: 32_503_680_000_000,
+} as const;
+
+/**
+ * Shared doodles drawn over the chat.
+ *
+ * Anchored to a message and swept on the same 24h schedule, so a doodle lives
+ * exactly as long as the messages it was drawn over. Stroke data is capped so a
+ * single drawing cannot bloat a document or the write it costs.
+ */
+export const DOODLE = {
+  /** Points are decimated to this spacing (px) before saving — a fine drawing
+   *  gathers hundreds of points a second, most of them redundant. */
+  MIN_POINT_GAP: 2.5,
+  MAX_STROKES: 400,
+  /** Base64 ceiling for the encrypted stroke array. */
+  MAX_B64: 120_000,
+  PALETTE: [
+    '#ffffff',
+    '#ff5a5a',
+    '#ffb020',
+    '#ffe14d',
+    '#34d399',
+    '#4d94ff',
+    '#a78bfa',
+    '#f472b6',
+  ] as const,
+} as const;
+
 export const GIF = {
   API_KEY: import.meta.env.VITE_GIPHY_API_KEY ?? '',
   ENDPOINT: 'https://api.giphy.com/v1/gifs',
@@ -199,6 +304,27 @@ export const AUDIO = {
     'audio/mp4;codecs=opus',
     'audio/mp4',
   ] as const,
+} as const;
+
+/**
+ * Scheduled messages.
+ *
+ * A scheduled message is written to Firestore immediately with a FUTURE
+ * createdAt (= the delivery time). Because it already lives in the cloud, it
+ * reaches the other person at that time whether or not the sender is online —
+ * no server-side job, which the free tier could not run anyway. The recipient's
+ * client simply does not render messages dated in the future until they arrive.
+ *
+ * Honest limitation: the ciphertext sits in Firestore from the moment it is
+ * scheduled, so a recipient who dug into the raw database (they hold the key)
+ * could decrypt it early. The app hides it; it is not cryptographically sealed
+ * until the delivery time. Fine between two people who trust each other.
+ */
+export const SCHEDULE = {
+  /** Farthest ahead a message may be scheduled — matches the rules' bound. */
+  MAX_AHEAD_MS: 7 * 24 * 60 * 60 * 1000,
+  /** Soonest, so "schedule" is never just a delayed send by accident. */
+  MIN_AHEAD_MS: 60 * 1000,
 } as const;
 
 export const MESSAGES = {

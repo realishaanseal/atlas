@@ -45,6 +45,15 @@ export function useCall(
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
 
+  // The peer's own mic/camera state, received over the call's data channel.
+  const [peerMuted, setPeerMuted] = useState(false);
+  const [peerCameraOff, setPeerCameraOff] = useState(false);
+
+  // Local state mirrored in refs so a toggle can report the pair to the peer
+  // without either callback depending on the other's latest value.
+  const mutedRef = useRef(false);
+  const cameraOffRef = useRef(false);
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
@@ -103,10 +112,14 @@ export function useCall(
     outgoingRef.current = false;
     connectedAtRef.current = null;
     loggedRef.current = false;
+    mutedRef.current = false;
+    cameraOffRef.current = false;
     setPhase('idle');
     setIncoming(null);
     setMuted(false);
     setCameraOff(false);
+    setPeerMuted(false);
+    setPeerCameraOff(false);
   }, []);
 
   const hangUp = useCallback(() => {
@@ -208,6 +221,10 @@ export function useCall(
             setRemoteStream(stream);
           },
           onConnectionState,
+          (meta) => {
+            setPeerMuted(meta.muted);
+            setPeerCameraOff(meta.cameraOff);
+          },
         );
         sessionRef.current = session;
         localStreamRef.current = session.localStream;
@@ -252,6 +269,10 @@ export function useCall(
           setRemoteStream(stream);
         },
         onConnectionState,
+        (meta) => {
+          setPeerMuted(meta.muted);
+          setPeerCameraOff(meta.cameraOff);
+        },
       );
       sessionRef.current = session;
       localStreamRef.current = session.localStream;
@@ -275,17 +296,83 @@ export function useCall(
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
-    const next = !muted;
+    const next = !mutedRef.current;
     for (const track of stream.getAudioTracks()) track.enabled = !next;
+    mutedRef.current = next;
     setMuted(next);
-  }, [muted]);
+    sessionRef.current?.sendMeta({ muted: next, cameraOff: cameraOffRef.current });
+  }, []);
 
   const toggleCamera = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
-    const next = !cameraOff;
+    const next = !cameraOffRef.current;
     for (const track of stream.getVideoTracks()) track.enabled = !next;
+    cameraOffRef.current = next;
     setCameraOff(next);
+    sessionRef.current?.sendMeta({ muted: mutedRef.current, cameraOff: next });
+  }, []);
+
+  // Front/back camera switching, offered only when the device actually has more
+  // than one camera — on a laptop with a single webcam the button would do
+  // nothing, so it is hidden rather than dead.
+  const [canSwitchCamera, setCanSwitchCamera] = useState(false);
+  const facingRef = useRef<'user' | 'environment'>('user');
+
+  useEffect(() => {
+    if (kind !== 'video' || localStream === null) {
+      setCanSwitchCamera(false);
+      return;
+    }
+    // Device kinds are only populated once camera permission is granted, which
+    // by now it is — the call is already running.
+    void navigator.mediaDevices
+      ?.enumerateDevices()
+      .then((devices) => {
+        setCanSwitchCamera(devices.filter((d) => d.kind === 'videoinput').length > 1);
+      })
+      .catch(() => {
+        setCanSwitchCamera(false);
+      });
+  }, [kind, localStream]);
+
+  const switchCamera = useCallback(() => {
+    void (async () => {
+      const session = sessionRef.current;
+      const stream = localStreamRef.current;
+      if (!session || !stream) return;
+
+      const next = facingRef.current === 'user' ? 'environment' : 'user';
+      try {
+        const fresh = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: next },
+          audio: false,
+        });
+        const track = fresh.getVideoTracks()[0];
+        if (!track) return;
+
+        // Preserve the current on/off state through the swap.
+        track.enabled = !cameraOff;
+
+        // replaceTrack swaps the outgoing camera without renegotiating — same
+        // track kind, so no new offer/answer is needed and the call is not
+        // disturbed.
+        const sender = session.pc.getSenders().find((s) => s.track?.kind === 'video');
+        await sender?.replaceTrack(track);
+
+        // Swap the track into the existing local stream so the self-view
+        // updates; the <video> is bound to this same MediaStream object.
+        for (const old of stream.getVideoTracks()) {
+          stream.removeTrack(old);
+          old.stop();
+        }
+        stream.addTrack(track);
+        facingRef.current = next;
+      } catch {
+        // Permission denied or the facing mode is unavailable — leave the
+        // current camera as it was.
+      }
+    })();
   }, [cameraOff]);
 
   // Clean up if the component unmounts mid-call.
@@ -301,6 +388,8 @@ export function useCall(
     error,
     muted,
     cameraOff,
+    peerMuted,
+    peerCameraOff,
     localStream,
     remoteStream,
     start,
@@ -309,6 +398,8 @@ export function useCall(
     hangUp,
     toggleMute,
     toggleCamera,
+    switchCamera,
+    canSwitchCamera,
     dismissError: () => {
       setError(null);
       if (phase === 'failed') reset();

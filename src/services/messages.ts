@@ -2,6 +2,7 @@ import {
   collection,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -19,6 +20,7 @@ import { MESSAGES, RETENTION_MS } from '@/config';
 import { encrypt, decrypt, encryptJson, decryptJson, pad, unpad, randomId } from '@/crypto';
 import type {
   DeliveryState,
+  EncryptedEnvelope,
   Message,
   MessageDoc,
   MessagePayload,
@@ -117,6 +119,30 @@ function isValidImagePayload(value: unknown): value is Extract<MessagePayload, {
   );
 }
 
+/** Like isBounded, but tolerates 0 — a clip whose metadata could not be read. */
+function isNonNegative(value: unknown, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max;
+}
+
+function isValidVideoPayload(value: unknown): value is Extract<MessagePayload, { kind: 'video' }> {
+  if (typeof value !== 'object' || value === null) return false;
+  const p = value as Record<string, unknown>;
+
+  return (
+    p['kind'] === 'video' &&
+    typeof p['videoId'] === 'string' &&
+    ID_PATTERN.test(p['videoId']) &&
+    isNonNegative(p['width'], 10000) &&
+    isNonNegative(p['height'], 10000) &&
+    isNonNegative(p['durationMs'], 86_400_000) &&
+    typeof p['mime'] === 'string' &&
+    // Bounded so a crafted payload cannot make us chase chunks that never exist.
+    (p['chunks'] === undefined || isBounded(p['chunks'], 64)) &&
+    typeof p['wrappedKey'] === 'object' &&
+    p['wrappedKey'] !== null
+  );
+}
+
 function isValidCallPayload(value: unknown): value is Extract<MessagePayload, { kind: 'call' }> {
   if (typeof value !== 'object' || value === null) return false;
   const p = value as Record<string, unknown>;
@@ -150,7 +176,13 @@ function isValidAudioPayload(value: unknown): value is Extract<MessagePayload, {
   );
 }
 
-export const MAX_REACTIONS_PER_PERSON = 6;
+/**
+ * How many reactions one person may leave on a message. Matches the quick-react
+ * preset cap (BULK_MAX), so a full preset applies in one tap. Ten custom-emoji
+ * references encode to ~450 base64 chars — comfortably inside the 512-byte
+ * reaction envelope the Security Rules allow.
+ */
+export const MAX_REACTIONS_PER_PERSON = 10;
 
 /**
  * A reaction is either a literal Unicode emoji or a custom emoji reference.
@@ -218,7 +250,14 @@ function sanitiseReply(value: unknown): ReplyRef | undefined {
 
   if (typeof r['id'] !== 'string' || !ID_PATTERN.test(r['id'])) return undefined;
   if (r['sender'] !== 'a' && r['sender'] !== 'b') return undefined;
-  if (r['kind'] !== 'text' && r['kind'] !== 'image' && r['kind'] !== 'audio') return undefined;
+  if (
+    r['kind'] !== 'text' &&
+    r['kind'] !== 'image' &&
+    r['kind'] !== 'audio' &&
+    r['kind'] !== 'video'
+  ) {
+    return undefined;
+  }
   if (typeof r['preview'] !== 'string') return undefined;
 
   return {
@@ -230,7 +269,17 @@ function sanitiseReply(value: unknown): ReplyRef | undefined {
 }
 
 async function decryptPayload(key: CryptoKey, doc: MessageDoc): Promise<MessagePayload> {
-  const tagged = await decrypt(key, doc.body);
+  return decryptBody(key, doc.body);
+}
+
+/**
+ * Decrypts a body envelope to a payload.
+ *
+ * Split out from decryptPayload so the edit history can decrypt `originalBody`
+ * — a body envelope that is not the message's current one.
+ */
+async function decryptBody(key: CryptoKey, envelope: EncryptedEnvelope): Promise<MessagePayload> {
+  const tagged = await decrypt(key, envelope);
   const tag = tagged[0];
   const body = tagged.subarray(1);
 
@@ -249,11 +298,34 @@ async function decryptPayload(key: CryptoKey, doc: MessageDoc): Promise<MessageP
 
   const parsed: unknown = JSON.parse(decodeUtf8(body));
   if (isValidCallPayload(parsed)) return parsed;
-  if (isValidImagePayload(parsed) || isValidAudioPayload(parsed)) {
+  if (isValidImagePayload(parsed) || isValidAudioPayload(parsed) || isValidVideoPayload(parsed)) {
     const replyTo = sanitiseReply((parsed as Record<string, unknown>)['replyTo']);
     return { ...parsed, ...(replyTo ? { replyTo } : {}) };
   }
   throw new AppError('decrypt-failed');
+}
+
+/**
+ * The edit-related fields for a decrypted message: when it was edited and, if
+ * so, the original text for the history view. Returns nothing for a message
+ * that was never edited, and omits the original if it cannot be decrypted
+ * rather than failing the whole message.
+ */
+async function editFields(
+  key: CryptoKey,
+  data: MessageDoc,
+): Promise<{ editedAt?: number; originalText?: string }> {
+  if (data.editedAt === undefined) return {};
+  let originalText: string | undefined;
+  if (data.originalBody) {
+    try {
+      const original = await decryptBody(key, data.originalBody);
+      if (original.kind === 'text') originalText = original.text;
+    } catch {
+      // Unreadable original: keep the "edited" mark, drop the history.
+    }
+  }
+  return { editedAt: data.editedAt, ...(originalText !== undefined ? { originalText } : {}) };
 }
 
 // --- sending ---------------------------------------------------------------
@@ -287,6 +359,35 @@ export async function commit(pending: PendingSend, sender: ParticipantId): Promi
     expiresAt: pending.expiresAt,
     body: pending.body,
   });
+}
+
+/**
+ * Writes a message dated in the future.
+ *
+ * Its createdAt IS the delivery time, so it sorts into the timeline then and the
+ * recipient's client keeps it hidden until that moment. Once written, delivery
+ * no longer depends on the sender being online.
+ */
+export async function schedule(
+  key: CryptoKey,
+  payload: MessagePayload,
+  sender: ParticipantId,
+  deliverAt: number,
+): Promise<void> {
+  const { db } = getServices();
+  await setDoc(doc(db, paths.message(randomId())), {
+    sender,
+    createdAt: deliverAt,
+    expiresAt: deliverAt + RETENTION_MS,
+    body: await encryptPayload(key, payload),
+  });
+}
+
+/** Cancels a not-yet-delivered scheduled message. Rules allow the sender only. */
+export async function cancelScheduled(messageId: string): Promise<void> {
+  const { db } = getServices();
+  const { deleteDoc } = await import('firebase/firestore');
+  await deleteDoc(doc(db, paths.message(messageId)));
 }
 
 // --- receiving -------------------------------------------------------------
@@ -346,6 +447,7 @@ export function subscribe(
                 reactions: await decryptReactions(key, data.reactions),
                 state: (data.readAt !== undefined ? 'read' : 'delivered') satisfies DeliveryState,
                 ...(data.readAt !== undefined ? { readAt: data.readAt } : {}),
+                ...(await editFields(key, data)),
               };
             } catch {
               // A message we cannot decrypt is not a crash. It most likely
@@ -363,6 +465,85 @@ export function subscribe(
     },
     onError,
   );
+}
+
+/**
+ * Fetches specific messages by id and decrypts them.
+ *
+ * Used for pinned messages: once a pin is older than the live window's 50, the
+ * subscription no longer carries it, but the document still exists (its expiry
+ * was pushed out while pinned). Fetching by id keeps pinned messages present in
+ * the timeline and jumpable however old they get.
+ *
+ * A missing or undecryptable id is skipped, never thrown — a pin whose message
+ * genuinely vanished should not break the list.
+ */
+export async function fetchByIds(key: CryptoKey, ids: string[]): Promise<Message[]> {
+  const { db } = getServices();
+
+  const fetched = await Promise.all(
+    ids.map(async (id): Promise<Message | null> => {
+      try {
+        const snap = await getDoc(doc(db, paths.message(id)));
+        if (!snap.exists()) return null;
+        const data = snap.data() as MessageDoc;
+        return {
+          id: snap.id,
+          sender: data.sender,
+          createdAt: data.createdAt,
+          expiresAt: data.expiresAt,
+          payload: await decryptPayload(key, data),
+          reactions: await decryptReactions(key, data.reactions),
+          state: (data.readAt !== undefined ? 'read' : 'delivered') satisfies DeliveryState,
+          ...(data.readAt !== undefined ? { readAt: data.readAt } : {}),
+          ...(await editFields(key, data)),
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return fetched.filter((m): m is Message => m !== null);
+}
+
+/**
+ * Edits a text message.
+ *
+ * On the first edit the current body is snapshotted into `originalBody`, so the
+ * history keeps the true original however many times it is later changed. The
+ * caller passes whether that snapshot already exists (message.editedAt set), so
+ * no extra read is needed. Any reply reference is carried into the new body so
+ * an edited reply stays a reply.
+ *
+ * Rules permit this only for the sender's own, unexpired message.
+ */
+export async function editMessage(
+  key: CryptoKey,
+  message: Message,
+  newText: string,
+): Promise<void> {
+  const { db } = getServices();
+
+  const replyTo = message.payload.kind === 'text' ? message.payload.replyTo : undefined;
+  const newBody = await encryptPayload(key, {
+    kind: 'text',
+    text: newText,
+    ...(replyTo ? { replyTo } : {}),
+  });
+
+  const update: {
+    body: Awaited<ReturnType<typeof encrypt>>;
+    editedAt: number;
+    originalBody?: Awaited<ReturnType<typeof encrypt>>;
+  } = { body: newBody, editedAt: Date.now() };
+
+  // First edit only: preserve the current text as the original.
+  if (message.editedAt === undefined && message.payload.kind === 'text') {
+    update.originalBody = await encryptPayload(key, message.payload);
+  }
+
+  await updateDoc(doc(db, paths.message(message.id)), update);
 }
 
 /** Recipient stamps readAt. Rules enforce that only the non-sender may. */
@@ -440,6 +621,7 @@ export async function sweep(): Promise<number> {
   const results = await Promise.allSettled([
     sweepCollection(paths.images(), 20),
     sweepCollection(paths.audioClips(), 20),
+    sweepCollection(paths.doodles(), 20),
     sweepCollection(paths.messages(), 100),
   ]);
 

@@ -51,16 +51,52 @@ Giphy. Favourites are saved locally.
 **Voice notes** — up to two minutes, Opus at 24 kbps, with a waveform sampled
 live while recording.
 
+**Video** — short clips, encrypted and chunked across documents like GIFs, with
+a poster frame so the bubble shows a still before the clip is fetched.
+
 **Voice and video calls** — WebRTC, peer-to-peer. Media never touches a server,
 and the signalling is encrypted too, so the database never sees an IP address.
 
 **Replies and reactions** — swipe right on touch or hover on desktop to reply.
-React with any emoji; both people's reactions group with a count.
+React with any emoji; both people's reactions group with a count. A quick-react
+button applies a preset of up to ten emoji in one tap.
 
 **Custom emoji** — upload your own, use them as `:shortcode:` in messages or as
 reactions. Shared between both devices. The only thing that does not expire.
 
-**Nicknames** — name the other person locally. Never leaves your device.
+**Formatting** — a Markdown subset (`**bold**`, `*italic*`, `` `code` ``,
+headings, bullets), `||spoilers||` hidden until clicked, `@mentions` that
+resolve to each viewer's own names, and clickable links. `Cmd/Ctrl+B` and
+`Cmd/Ctrl+I` wrap the selection.
+
+**Pinned messages** — pin anything to a Discord-style header panel. Pins and
+their media are exempted from the 24-hour sweep, so they persist.
+
+**Editing** — edit your own messages; the original is snapshotted once so the
+history always shows the true first version.
+
+**Scheduled messages** — written to the database immediately with a future
+delivery time, so they arrive whether or not the sender is online. No server
+job, which the free tier could not run anyway.
+
+**Scribble** — draw over the conversation on a translucent layer anchored to a
+message, so it scrolls with the chat. Strokes are smoothed into curves and
+taper with drawing speed. Shared, and expires with its anchor.
+
+**Themes** — OKLCH-derived accent presets, an accent extracted from an uploaded
+image, background tints, and a croppable wallpaper. Local to each device.
+
+**Nicknames** — name the other person locally. Never leaves your device, with
+one optional exception: a device may publish its own label so the other person
+can see what they are called.
+
+**Second device** — the A side can link a second device (phone plus laptop)
+without unpairing. The cap stays structural: slots are fields on the room
+document, so there is no third field to write.
+
+**Local archive** — optionally mirror the decrypted conversation into IndexedDB
+on your own device so it survives the 24-hour sweep, and export it as a single
+self-contained HTML file with all media inlined.
 
 **Lock screen** — the app presents as a generic "private workspace" until
 unlocked, and auto-locks after 15 minutes idle.
