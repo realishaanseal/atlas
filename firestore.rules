@@ -337,7 +337,10 @@ service cloud.firestore {
                .hasOnly([mySlot(roomId)])
           // Either set to a valid envelope, or removed entirely.
           && (!(mySlot(roomId) in request.resource.data.get('reactions', {}))
-              || validEnvelope(request.resource.data.reactions[mySlot(roomId)], 512));
+              // 2048 base64 chars. Twenty custom-emoji references — the
+              // per-person cap in config — encode to roughly 880, so this
+              // leaves generous headroom while still bounding the field.
+              || validEnvelope(request.resource.data.reactions[mySlot(roomId)], 2048));
 
         // Editing. Only the SENDER may change the body of their own message,
         // and only `body` / `editedAt` / `originalBody` may move. The original

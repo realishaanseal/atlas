@@ -327,6 +327,24 @@ export const SCHEDULE = {
   MIN_AHEAD_MS: 60 * 1000,
 } as const;
 
+/**
+ * Reactions.
+ *
+ * The cap is PER PERSON, not per message: each participant owns their own key
+ * in the reactions map, so a message can carry up to twice this many chips
+ * before grouping. It exists only to bound the encrypted list against the
+ * envelope ceiling the Security Rules enforce — twenty custom-emoji references
+ * encode to roughly 880 base64 characters, comfortably inside the 2048 the
+ * rules allow.
+ *
+ * MAX_PRESET is the quick-react preset size, kept equal so a full preset can be
+ * applied to an empty message in one tap without anything being dropped.
+ */
+export const REACTIONS = {
+  MAX_PER_PERSON: 20,
+  MAX_PRESET: 20,
+} as const;
+
 export const MESSAGES = {
   MAX_TEXT_LENGTH: 4000,
   /** How many recent messages to hydrate on unlock. */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { REACTIONS } from '@/config';
 import * as kv from '@/storage/db';
 
 /**
@@ -12,7 +13,7 @@ import * as kv from '@/storage/db';
  */
 
 const KEY = 'bulk-reactions';
-export const BULK_MAX = 10;
+export const BULK_MAX = REACTIONS.MAX_PRESET;
 
 export function useBulkReactions() {
   const [emojis, setEmojis] = useState<string[]>([]);

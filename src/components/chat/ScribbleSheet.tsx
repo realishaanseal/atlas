@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Undo2, Redo2, Trash2, Check, Pen, Brush, Plus } from 'lucide-react';
+import { X, Undo2, Redo2, Trash2, Check, Pen, Brush } from 'lucide-react';
 import { DOODLE } from '@/config';
 import { buildStrokeSegments } from '@/utils/strokeRender';
 import { cn } from '@/utils/cn';
@@ -17,9 +17,6 @@ interface ScribbleSheetProps {
   onDone: (strokes: ScribbleStroke[]) => void;
   onClose: () => void;
 }
-
-const RING_HUES = Array.from({ length: 12 }, (_, i) => `hsl(${String(i * 30)} 85% 58%)`);
-const NEUTRALS = ['#ffffff', '#c9d2e3', '#8d97ad', '#000000'];
 
 /**
  * A drawing surface laid over the conversation.
@@ -388,12 +385,11 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
           />
 
           {pickerOpen && (
-            <ColorRing
+            <ColorWheel
               color={color}
-              onPick={(next) => {
-                setColor(next);
-                setPickerOpen(false);
-              }}
+              // Live: the colour updates as you drag, so the preview dot and the
+              // next stroke follow immediately. Closing is the outside click.
+              onPick={setColor}
               onClose={() => {
                 setPickerOpen(false);
               }}
@@ -406,7 +402,97 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
   );
 }
 
-function ColorRing({
+// --- colour maths -----------------------------------------------------------
+
+interface Hsv {
+  h: number;
+  s: number;
+  v: number;
+}
+
+function hsvToHex({ h, s, v }: Hsv): string {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+
+  // Written as branches rather than a lookup table on purpose: indexing an
+  // array yields `number | undefined` under `noUncheckedIndexedAccess`, and
+  // the fallback needed to satisfy that would be dead code pretending to be
+  // meaningful. The sector is always 0–5, and this says so plainly.
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const sector = Math.floor(h / 60) % 6;
+  if (sector === 0) {
+    r = c;
+    g = x;
+  } else if (sector === 1) {
+    r = x;
+    g = c;
+  } else if (sector === 2) {
+    g = c;
+    b = x;
+  } else if (sector === 3) {
+    g = x;
+    b = c;
+  } else if (sector === 4) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
+
+  const to255 = (n: number) =>
+    Math.round((n + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to255(r)}${to255(g)}${to255(b)}`;
+}
+
+function hexToHsv(hex: string): Hsv {
+  // Captured into a local so the non-null check narrows cleanly under
+  // `noUncheckedIndexedAccess` — indexing the match array inline does not.
+  const digits = /^#?([0-9a-f]{6})$/i.exec(hex.trim())?.[1];
+  if (digits === undefined) return { h: 0, s: 0, v: 1 };
+  const int = parseInt(digits, 16);
+  const r = ((int >> 16) & 255) / 255;
+  const g = ((int >> 8) & 255) / 255;
+  const b = (int & 255) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d + 6) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max };
+}
+
+const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// --- picker -----------------------------------------------------------------
+
+const WHEEL = 168; // outer diameter, px
+const RING = 20; // ring thickness, px
+
+/**
+ * A continuous colour picker: a hue ring around a saturation/brightness square.
+ *
+ * Replaces the old twelve fixed swatches — every colour is reachable, including
+ * pure white and black at the corners of the square, so no separate neutral row
+ * is needed. Both controls are drag-tracked with pointer capture, so a drag
+ * that leaves the element keeps updating instead of stopping dead.
+ *
+ * Changes are published live while dragging: the thickness preview dot and the
+ * next stroke both follow the colour as you move, which is the whole point of a
+ * continuous picker over a palette.
+ */
+function ColorWheel({
   color,
   onPick,
   onClose,
@@ -416,6 +502,19 @@ function ColorRing({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const ringRef = useRef<HTMLDivElement | null>(null);
+  const squareRef = useRef<HTMLDivElement | null>(null);
+
+  // Seeded from the current colour so opening the picker never jumps.
+  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(color));
+  const [hex, setHex] = useState(color);
+
+  const commit = (next: Hsv) => {
+    setHsv(next);
+    const value = hsvToHex(next);
+    setHex(value);
+    onPick(value);
+  };
 
   useEffect(() => {
     const attach = setTimeout(() => {
@@ -430,63 +529,136 @@ function ColorRing({
     };
   }, [onClose]);
 
-  const radius = 92;
+  /** Angle from the top, clockwise — matches conic-gradient's own origin. */
+  const hueFromEvent = (event: React.PointerEvent) => {
+    const rect = ringRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const dx = event.clientX - (rect.left + rect.width / 2);
+    const dy = event.clientY - (rect.top + rect.height / 2);
+    const deg = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+    commit({ ...hsv, h: deg });
+  };
+
+  const svFromEvent = (event: React.PointerEvent) => {
+    const rect = squareRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    commit({
+      ...hsv,
+      s: clamp01((event.clientX - rect.left) / rect.width),
+      // Brightness runs bottom-to-top, as everywhere else.
+      v: clamp01(1 - (event.clientY - rect.top) / rect.height),
+    });
+  };
+
+  const square = Math.round((WHEEL - RING * 2) * 0.707); // inscribed in the inner circle
+  const hueHex = hsvToHex({ h: hsv.h, s: 1, v: 1 });
 
   return (
     <div
       ref={rootRef}
-      className="glass animate-rise absolute bottom-full left-0 mb-3 flex size-56 items-center
-                 justify-center rounded-full border border-border shadow-lift"
+      className="glass animate-scale-in absolute bottom-full left-0 mb-3 flex flex-col items-center
+                 gap-2 rounded-2xl border border-border p-3 shadow-lift"
     >
-      {RING_HUES.map((hue, i) => {
-        const angle = (i / RING_HUES.length) * 2 * Math.PI - Math.PI / 2;
-        return (
-          <button
-            key={hue}
-            type="button"
-            onClick={() => {
-              onPick(hue);
-            }}
-            aria-label={`Colour ${String(i)}`}
-            className="press absolute size-7 rounded-full border border-black/20"
+      <div className="relative" style={{ width: WHEEL, height: WHEEL }}>
+        {/* Hue ring */}
+        <div
+          ref={ringRef}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            hueFromEvent(event);
+          }}
+          onPointerMove={(event) => {
+            if (event.buttons > 0) hueFromEvent(event);
+          }}
+          role="slider"
+          aria-label="Hue"
+          aria-valuemin={0}
+          aria-valuemax={359}
+          aria-valuenow={Math.round(hsv.h)}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') commit({ ...hsv, h: (hsv.h + 355) % 360 });
+            if (event.key === 'ArrowRight') commit({ ...hsv, h: (hsv.h + 5) % 360 });
+          }}
+          className="absolute inset-0 cursor-pointer rounded-full"
+          style={{
+            background:
+              'conic-gradient(hsl(0,100%,50%),hsl(60,100%,50%),hsl(120,100%,50%),' +
+              'hsl(180,100%,50%),hsl(240,100%,50%),hsl(300,100%,50%),hsl(360,100%,50%))',
+            // Punches the middle out so only the ring is interactive-looking.
+            WebkitMask: `radial-gradient(circle, transparent ${String(WHEEL / 2 - RING)}px, #000 ${String(WHEEL / 2 - RING + 1)}px)`,
+            mask: `radial-gradient(circle, transparent ${String(WHEEL / 2 - RING)}px, #000 ${String(WHEEL / 2 - RING + 1)}px)`,
+          }}
+        />
+
+        {/* Hue handle */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute size-4 rounded-full border-2 border-white shadow-lift"
+          style={{
+            backgroundColor: hueHex,
+            left: `calc(50% + ${String(Math.sin((hsv.h * Math.PI) / 180) * (WHEEL / 2 - RING / 2))}px)`,
+            top: `calc(50% - ${String(Math.cos((hsv.h * Math.PI) / 180) * (WHEEL / 2 - RING / 2))}px)`,
+            transform: 'translate(-50%, -50%)',
+          }}
+        />
+
+        {/* Saturation / brightness square */}
+        <div
+          ref={squareRef}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            svFromEvent(event);
+          }}
+          onPointerMove={(event) => {
+            if (event.buttons > 0) svFromEvent(event);
+          }}
+          className="absolute cursor-crosshair rounded-md"
+          style={{
+            width: square,
+            height: square,
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueHex})`,
+          }}
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none absolute size-3.5 rounded-full border-2 border-white shadow-lift"
             style={{
-              backgroundColor: hue,
-              left: `calc(50% + ${String(Math.cos(angle) * radius)}px)`,
-              top: `calc(50% + ${String(Math.sin(angle) * radius)}px)`,
+              backgroundColor: hex,
+              left: `${String(hsv.s * 100)}%`,
+              top: `${String((1 - hsv.v) * 100)}%`,
               transform: 'translate(-50%, -50%)',
             }}
           />
-        );
-      })}
+        </div>
+      </div>
 
-      <div className="flex items-center gap-1.5 rounded-full bg-bg-deep/70 p-1.5">
-        {NEUTRALS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => {
-              onPick(n);
-            }}
-            aria-label={`Colour ${n}`}
-            className="press size-6 rounded-full border border-white/20"
-            style={{ backgroundColor: n }}
-          />
-        ))}
-        <label
-          className="press flex size-6 cursor-pointer items-center justify-center rounded-full
-                     border border-white/20 text-white"
-          style={{ backgroundColor: color }}
-        >
-          <Plus size={13} aria-hidden />
-          <input
-            type="color"
-            value={/^#[0-9a-fA-F]{6}$/.test(color) ? color : '#ffffff'}
-            onChange={(event) => {
-              onPick(event.target.value);
-            }}
-            className="sr-only"
-          />
-        </label>
+      {/* Live swatch + hex, for when you want an exact value. */}
+      <div className="flex w-full items-center gap-2">
+        <span
+          aria-hidden
+          className="size-7 shrink-0 rounded-full border border-white/25"
+          style={{ backgroundColor: hex }}
+        />
+        <input
+          value={hex}
+          onChange={(event) => {
+            const next = event.target.value;
+            setHex(next);
+            if (/^#?[0-9a-f]{6}$/i.test(next.trim())) {
+              const normalised = next.trim().startsWith('#') ? next.trim() : `#${next.trim()}`;
+              setHsv(hexToHsv(normalised));
+              onPick(normalised);
+            }
+          }}
+          spellCheck={false}
+          aria-label="Hex colour"
+          className="h-8 w-full min-w-0 rounded-md border border-border bg-surface-raised px-2
+                     font-mono text-xs uppercase text-text focus:border-accent focus:outline-none"
+        />
       </div>
     </div>
   );

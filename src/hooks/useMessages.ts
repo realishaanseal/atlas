@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SWEEP_INTERVAL_MS } from '@/config';
+import { REACTIONS, SWEEP_INTERVAL_MS } from '@/config';
 import type { ConnectionState, Message, MessagePayload, ParticipantId } from '@/types';
 
 /**
@@ -201,9 +201,9 @@ export function useMessages(key: CryptoKey, slot: ParticipantId) {
         prev.map((m) => {
           if (m.id !== messageId) return m;
           const current = m.reactions[slot] ?? [];
-          // Cap matches MAX_REACTIONS_PER_PERSON in services/messages, so the
-          // optimistic list equals what the write will store (no flicker).
-          nextList = [...new Set([...preset, ...current])].slice(0, 10);
+          // Same cap the write applies, from the same constant — so the
+          // optimistic list always equals what gets stored, with no flicker.
+          nextList = [...new Set([...preset, ...current])].slice(0, REACTIONS.MAX_PER_PERSON);
           return { ...m, reactions: { ...m.reactions, [slot]: nextList } };
         }),
       );

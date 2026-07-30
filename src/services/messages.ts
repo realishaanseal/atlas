@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { getServices } from '@/firebase/app';
 import { paths } from '@/firebase/paths';
-import { MESSAGES, RETENTION_MS } from '@/config';
+import { MESSAGES, REACTIONS, RETENTION_MS } from '@/config';
 import { encrypt, decrypt, encryptJson, decryptJson, pad, unpad, randomId } from '@/crypto';
 import type {
   DeliveryState,
@@ -177,12 +177,13 @@ function isValidAudioPayload(value: unknown): value is Extract<MessagePayload, {
 }
 
 /**
- * How many reactions one person may leave on a message. Matches the quick-react
- * preset cap (BULK_MAX), so a full preset applies in one tap. Ten custom-emoji
- * references encode to ~450 base64 chars — comfortably inside the 512-byte
- * reaction envelope the Security Rules allow.
+ * How many reactions one person may leave on a message.
+ *
+ * Re-exported from config so the optimistic path in useMessages can apply the
+ * same cap without statically importing this module — which would pull the
+ * whole service into the main bundle and undo its code-splitting.
  */
-export const MAX_REACTIONS_PER_PERSON = 10;
+export const MAX_REACTIONS_PER_PERSON = REACTIONS.MAX_PER_PERSON;
 
 /**
  * A reaction is either a literal Unicode emoji or a custom emoji reference.
