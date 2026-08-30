@@ -41,6 +41,13 @@ export default defineConfig({
           if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
             return 'vendor-b';
           }
+          // The animation runtime. Only ever imported from modules behind the
+          // access code, so it lands in its own chunk that a visitor who never
+          // unlocks does not fetch — same rationale as vendor-a. Kept separate
+          // so it stays cached across deploys that only touch app code.
+          if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+            return 'vendor-c';
+          }
           return undefined;
         },
       },
