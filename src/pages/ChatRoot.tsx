@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@/hooks/useTheme';
 import { CustomEmojiProvider } from '@/hooks/useCustomEmoji';
+import { MotionProvider } from '@/motion/config';
 import Conversation from './Conversation';
 import type { ParticipantId } from '@/types';
 
@@ -29,10 +30,12 @@ interface ChatRootProps {
  */
 export default function ChatRoot({ cryptoKey, slot, uid, onLock }: ChatRootProps) {
   return (
-    <ThemeProvider>
-      <CustomEmojiProvider cryptoKey={cryptoKey}>
-        <Conversation cryptoKey={cryptoKey} slot={slot} uid={uid} onLock={onLock} />
-      </CustomEmojiProvider>
-    </ThemeProvider>
+    <MotionProvider>
+      <ThemeProvider>
+        <CustomEmojiProvider cryptoKey={cryptoKey}>
+          <Conversation cryptoKey={cryptoKey} slot={slot} uid={uid} onLock={onLock} />
+        </CustomEmojiProvider>
+      </ThemeProvider>
+    </MotionProvider>
   );
 }

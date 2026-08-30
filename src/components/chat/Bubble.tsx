@@ -569,7 +569,7 @@ export function Bubble({
                   'text-text',
                   isVisualMedia
                     ? ''
-                    : 'border border-border bg-surface/80 backdrop-blur-sm shadow-soft',
+                    : 'border border-hairline bg-surface/65 backdrop-blur-md depth',
                 ),
           )}
           style={{

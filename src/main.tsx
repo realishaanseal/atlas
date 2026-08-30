@@ -14,14 +14,23 @@ installViewportHeight();
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');
 
-// The theme provider deliberately does NOT wrap the app here. It is only ever
-// consumed inside the conversation, and mounting it at the root would put the
-// palette engine — and an IndexedDB open — on the critical path of every visit
-// to the public site. It lives in pages/ChatRoot.tsx instead.
-createRoot(container).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </StrictMode>,
-);
+// Dev-only visual harness for the redesign. `import.meta.env.DEV` is statically
+// false in a production build, so this whole branch — and the ./dev/UiPreview
+// chunk — is dead-code-eliminated and never ships. Reach it at `/?preview`.
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview')) {
+  void import('./dev/UiPreview').then((mod) => {
+    mod.mountPreview(container);
+  });
+} else {
+  // The theme provider deliberately does NOT wrap the app here. It is only ever
+  // consumed inside the conversation, and mounting it at the root would put the
+  // palette engine — and an IndexedDB open — on the critical path of every visit
+  // to the public site. It lives in pages/ChatRoot.tsx instead.
+  createRoot(container).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </StrictMode>,
+  );
+}

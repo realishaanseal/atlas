@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { m, type Variants } from 'motion/react';
 import {
   Settings,
   Phone,
@@ -17,10 +18,22 @@ import { ThemeManager } from '@/components/chat/ThemeManager';
 import { NotificationSettingsModal } from '@/components/settings/NotificationSettingsModal';
 import { PairDeviceModal } from '@/components/settings/PairDeviceModal';
 import { PinPanel } from '@/components/chat/PinPanel';
+import { Popover } from '@/components/ui/Popover';
+import { springs } from '@/motion/springs';
 import type { ConnectionState, Pin } from '@/types';
 import type { PeerPresence } from '@/services/presence';
 import { useBackClose } from '@/hooks/useBackGuard';
 import { cn } from '@/utils/cn';
+
+/** Menu rows cascade in on open, capped so the last one is never noticeably late. */
+const MENU_ITEM: Variants = {
+  hidden: { opacity: 0, y: -6 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { ...springs.snappy, delay: Math.min(i, 7) * 0.028 },
+  }),
+};
 
 interface HeaderProps {
   peer: PeerPresence;
@@ -85,9 +98,7 @@ export function Header({
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
-  useBackClose(menuOpen, () => {
-    setMenuOpen(false);
-  });
+  // menuOpen's back-gesture + dismiss handling lives in <Popover>.
   useBackClose(pinsOpen, () => {
     setPinsOpen(false);
   });
@@ -97,31 +108,13 @@ export function Header({
   useBackClose(themeManagerOpen, () => {
     setThemeManagerOpen(false);
   });
-  useBackClose(notifModalOpen, () => {
-    setNotifModalOpen(false);
-  });
+  // notifModalOpen's back handling lives in <Overlay>.
   useBackClose(editing, () => {
     setEditing(false);
   });
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
 
   // Same dismissal pattern for the pin panel. The ref wraps both the button and
   // the panel, so the click that opens it is not counted as "outside".
@@ -150,8 +143,24 @@ export function Header({
           ? 'Online'
           : `Last seen ${relativeTime(peer.lastSeen)}`;
 
+  const menuItems: { icon: typeof Bell; label: string; action: () => void }[] = [
+    { icon: Sparkles, label: 'Custom emoji', action: () => { setEmojiManagerOpen(true); } },
+    { icon: Palette, label: 'Theme', action: () => { setThemeManagerOpen(true); } },
+    { icon: Bell, label: 'Notifications', action: () => { setNotifModalOpen(true); } },
+    { icon: Search, label: 'Search', action: onOpenSearch },
+    { icon: Zap, label: 'Quick reactions', action: onOpenBulkReactions },
+    ...(canArchive
+      ? [
+          { icon: Archive, label: 'Chat archive', action: onOpenArchive },
+          // A-side only, same reason as the archive: this opens the window that
+          // pairs a new device onto THIS side.
+          { icon: MonitorSmartphone, label: 'Add one of my devices', action: () => { setPairOpen(true); } },
+        ]
+      : []),
+  ];
+
   return (
-    <header className="glass sticky top-0 z-10 border-b border-border pt-safe">
+    <header className="glass sticky top-0 z-10 border-b border-hairline pt-safe">
       <div className="mx-auto flex h-14 max-w-[850px] items-center justify-between px-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="min-w-0">
@@ -315,138 +324,60 @@ export function Header({
 
 
           <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen((open) => !open);
-            }}
-            aria-label="Settings"
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            data-open={menuOpen}
-            className="press group flex size-10 items-center justify-center rounded-full
-                       text-secondary hover:bg-surface-raised hover:text-accent"
-          >
-            {/* Turns on hover AND stays turned while open, so the gear tracks
-                the panel's state rather than only reacting to the click. */}
-            <Settings size={18} aria-hidden className="icon-turn-full" />
-          </button>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="glass animate-scale-in stagger absolute right-0 top-12 w-60
-                         origin-top-right overflow-hidden rounded-md border border-border shadow-lift"
+            <m.button
+              type="button"
+              onClick={() => {
+                setMenuOpen((open) => !open);
+              }}
+              aria-label="Settings"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              whileTap={{ scale: 0.9 }}
+              transition={springs.snappy}
+              className="group flex size-10 items-center justify-center rounded-full
+                         text-secondary transition-colors hover:bg-surface-raised hover:text-accent"
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setEmojiManagerOpen(true);
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
+              <m.span
+                aria-hidden
+                animate={{ rotate: menuOpen ? 180 : 0 }}
+                transition={springs.gentle}
+                className="flex"
               >
-                <Sparkles size={15} className="text-secondary" aria-hidden />
-                Custom emoji
-              </button>
+                <Settings size={18} aria-hidden />
+              </m.span>
+            </m.button>
 
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setThemeManagerOpen(true);
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                <Palette size={15} className="text-secondary" aria-hidden />
-                Theme
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setNotifModalOpen(true);
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                <Bell size={15} className="text-secondary" aria-hidden />
-                Notifications
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onOpenSearch();
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                <Search size={15} className="text-secondary" aria-hidden />
-                Search
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onOpenBulkReactions();
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                <Zap size={15} className="text-secondary" aria-hidden />
-                Quick reactions
-              </button>
-
-              {/* A-side only: the local chat archive. The other device never
-                  sees this, by design — only this side keeps the memory. */}
-              {canArchive && (
-                <button
+            <Popover
+              open={menuOpen}
+              onClose={() => {
+                setMenuOpen(false);
+              }}
+              anchorRef={menuRef}
+              role="menu"
+              origin="top-right"
+              className="glass right-0 top-12 w-60 overflow-hidden rounded-md border border-hairline
+                         shadow-raised"
+            >
+              {menuItems.map((item, i) => (
+                <m.button
+                  key={item.label}
                   type="button"
                   role="menuitem"
+                  custom={i}
+                  variants={MENU_ITEM}
                   onClick={() => {
                     setMenuOpen(false);
-                    onOpenArchive();
+                    item.action();
                   }}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                             transition-colors duration-150 hover:bg-surface"
+                             text-secondary transition-colors duration-150 hover:bg-surface-raised
+                             hover:text-text"
                 >
-                  <Archive size={15} className="text-secondary" aria-hidden />
-                  Chat archive
-                </button>
-              )}
-
-              {/* A-side only, for the same reason the archive is: it opens the
-                  window that puts a newcomer on THIS side. Offering it to the
-                  other person would let them quietly add a device to yours. */}
-              {canArchive && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setPairOpen(true);
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                             transition-colors duration-150 hover:bg-surface"
-                >
-                  <MonitorSmartphone size={15} className="text-secondary" aria-hidden />
-                  Add one of my devices
-                </button>
-              )}
-
-            </div>
-            )}
+                  <item.icon size={15} aria-hidden />
+                  {item.label}
+                </m.button>
+              ))}
+            </Popover>
           </div>
         </div>
       </div>
@@ -475,17 +406,16 @@ export function Header({
         />
       )}
 
-      {notifModalOpen && (
-        <NotificationSettingsModal
-          sound={notifSound}
-          inTab={notifInTab}
-          onToggleSound={onToggleNotifSound}
-          onToggleInTab={onToggleNotifInTab}
-          onClose={() => {
-            setNotifModalOpen(false);
-          }}
-        />
-      )}
+      <NotificationSettingsModal
+        open={notifModalOpen}
+        sound={notifSound}
+        inTab={notifInTab}
+        onToggleSound={onToggleNotifSound}
+        onToggleInTab={onToggleNotifInTab}
+        onClose={() => {
+          setNotifModalOpen(false);
+        }}
+      />
     </header>
   );
 }
