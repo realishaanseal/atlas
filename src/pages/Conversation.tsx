@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, m } from 'motion/react';
 import { ChevronDown, Clock, ImagePlus, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { springs } from '@/motion/springs';
 import { Header } from '@/components/layout/Header';
 import { Bubble } from '@/components/chat/Bubble';
 import { Composer } from '@/components/chat/Composer';
@@ -621,40 +623,58 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
             </p>
           )}
 
-          {renderList.map((item) =>
-            item.kind === 'date' ? (
-              <DateSeparator key={item.key} timestamp={item.timestamp} />
-            ) : item.kind === 'unread' ? (
-              <UnreadSeparator key={item.key} />
-            ) : (
-              <Bubble
-                key={item.key}
-                message={item.message}
-                mine={item.mine}
-                mySlot={slot}
-                position={item.position}
-                cryptoKey={cryptoKey}
-                onOpenImage={setViewerUrl}
-                onReply={startReply}
-                onReact={(message, emoji) => {
-                  void react(message.id, emoji);
-                }}
-                bulkReactions={bulkReactions.emojis}
-                onBulkReact={(message) => {
-                  void bulkReact(message.id, bulkReactions.emojis);
-                }}
-                onJumpTo={jumpToMessage}
-                onTogglePin={handleTogglePin}
-                onEdit={(message, newText) => {
-                  edit(message, newText);
-                }}
-                pinned={pinnedIds.has(item.message.id)}
-                highlighted={highlightedId === item.message.id}
-              />
-            ),
-          )}
+          {/* `initial={false}` — the first 50-message hydration renders at rest;
+              only messages that arrive afterwards spring in, and a removed one
+              (an expiry sweep) animates out. */}
+          <AnimatePresence initial={false}>
+            {renderList.map((item) =>
+              item.kind === 'date' ? (
+                <DateSeparator key={item.key} timestamp={item.timestamp} />
+              ) : item.kind === 'unread' ? (
+                <UnreadSeparator key={item.key} />
+              ) : (
+                <Bubble
+                  key={item.key}
+                  message={item.message}
+                  mine={item.mine}
+                  mySlot={slot}
+                  position={item.position}
+                  cryptoKey={cryptoKey}
+                  onOpenImage={setViewerUrl}
+                  onReply={startReply}
+                  onReact={(message, emoji) => {
+                    void react(message.id, emoji);
+                  }}
+                  bulkReactions={bulkReactions.emojis}
+                  onBulkReact={(message) => {
+                    void bulkReact(message.id, bulkReactions.emojis);
+                  }}
+                  onJumpTo={jumpToMessage}
+                  onTogglePin={handleTogglePin}
+                  onEdit={(message, newText) => {
+                    edit(message, newText);
+                  }}
+                  pinned={pinnedIds.has(item.message.id)}
+                  highlighted={highlightedId === item.message.id}
+                />
+              ),
+            )}
+          </AnimatePresence>
 
-          {peer.typing && <TypingIndicator />}
+          <AnimatePresence>
+            {peer.typing && (
+              <m.div
+                key="typing"
+                initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+                transition={springs.gentle}
+                style={{ transformOrigin: 'bottom left' }}
+              >
+                <TypingIndicator />
+              </m.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

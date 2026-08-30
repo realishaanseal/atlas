@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { m, useReducedMotion } from 'motion/react';
+import { springs } from '@/motion/springs';
 import {
   Check,
   CheckCheck,
@@ -288,6 +290,7 @@ export function Bubble({
   pinned,
   highlighted,
 }: BubbleProps) {
+  const reduce = useReducedMotion() ?? false;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -374,8 +377,18 @@ export function Bubble({
     // `group` sits on the full-width row so the hover zone is the whole strip
     // beside the message, not just the bubble itself — moving toward the
     // controls from anywhere on that line keeps them alive.
-    <div
+    //
+    // The row is the enter/exit unit: a new message springs in from its
+    // sender's side (yours from the right, theirs from the left), a removed one
+    // (an expiry sweep) collapses out. AnimatePresence in Conversation with
+    // `initial={false}` keeps the first 50-message hydration from all animating
+    // at once. Reduced motion drops it to a plain fade.
+    <m.div
       id={`msg-${message.id}`}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12, x: mine ? 18 : -18, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, transition: { duration: 0.16 } }}
+      transition={springs.gentle}
       className={cn(
         'group relative flex w-full items-center scroll-mt-20',
         mine ? 'justify-end' : 'justify-start',
@@ -554,7 +567,6 @@ export function Bubble({
           }}
           className={cn(
             'relative overflow-hidden',
-            mine ? 'animate-enter-right' : 'animate-enter-left',
             'text-[0.9375rem] leading-relaxed',
             cornerClasses(mine, position),
             isVisualMedia ? '' : isAudio ? 'w-[min(78vw,17rem)] px-3 py-2' : 'px-4 py-2.5',
@@ -737,6 +749,6 @@ export function Bubble({
           onToggle={toggleReaction}
         />
       </div>
-    </div>
+    </m.div>
   );
 }
