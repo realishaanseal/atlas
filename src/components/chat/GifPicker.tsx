@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Loader2, ShieldAlert, Star, TrendingUp } from 'lucide-react';
 import { useGifFavourites, type GifFavourite } from '@/hooks/useGifFavourites';
 import type { GifResult } from '@/services/gifs';
+import { GIF } from '@/config';
 import { cn } from '@/utils/cn';
 
 interface GifPickerProps {
@@ -60,6 +61,18 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * Pagination state. Giphy pages by offset, and without this the panel showed
+   * exactly one page and then simply stopped — which read as "there are no more
+   * GIFs" rather than "nobody asked for any".
+   */
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Guards against a burst of scroll events all firing the same fetch.
+  const fetchingRef = useRef(false);
+
   const { favourites, toggleGiphy, isFavourite } = useGifFavourites();
   const localPreviews = useLocalPreviews(favourites);
 
@@ -91,9 +104,16 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
           setError(null);
           try {
             const gifs = await import('@/services/gifs');
-            const found =
-              query.trim().length > 0 ? await gifs.search(query.trim()) : await gifs.featured();
-            if (!cancelled) setResults(found);
+            const page =
+              query.trim().length > 0
+                ? await gifs.search(query.trim(), 0)
+                : await gifs.featured(0);
+            if (!cancelled) {
+              setResults(page.results);
+              setOffset(page.results.length > 0 ? GIF.LIMIT : 0);
+              setHasMore(page.hasMore);
+              scrollRef.current?.scrollTo({ top: 0 });
+            }
           } catch {
             if (!cancelled) setError('Could not reach GIF search.');
           } finally {
@@ -109,6 +129,37 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
       clearTimeout(timer);
     };
   }, [query, tab]);
+
+  /** Fetches the next page and appends it. */
+  const loadMore = useCallback(() => {
+    if (fetchingRef.current || !hasMore || tab === 'favourites') return;
+    fetchingRef.current = true;
+    setLoadingMore(true);
+
+    void (async () => {
+      try {
+        const gifs = await import('@/services/gifs');
+        const page =
+          query.trim().length > 0
+            ? await gifs.search(query.trim(), offset)
+            : await gifs.featured(offset);
+
+        // Deduplicated: Giphy occasionally repeats an item across page
+        // boundaries, and a duplicate React key would break the grid.
+        setResults((current) => {
+          const seen = new Set(current.map((r) => r.id));
+          return [...current, ...page.results.filter((r) => !seen.has(r.id))];
+        });
+        setOffset((current) => current + GIF.LIMIT);
+        setHasMore(page.hasMore);
+      } catch {
+        setHasMore(false);
+      } finally {
+        fetchingRef.current = false;
+        setLoadingMore(false);
+      }
+    })();
+  }, [hasMore, offset, query, tab]);
 
   const showLoading = tab === 'browse' && loading;
 
@@ -216,7 +267,16 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
         </button>
       </div>
 
-      <div className="max-h-72 overflow-y-auto p-2">
+      <div
+        ref={scrollRef}
+        onScroll={(event) => {
+          // Fetch a page ahead of the bottom, so the grid keeps filling rather
+          // than visibly stalling every time you reach the end.
+          const el = event.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 320) loadMore();
+        }}
+        className="max-h-[22rem] overflow-y-auto p-2"
+      >
         {showLoading && (
           <div className="flex items-center justify-center py-10">
             <Loader2 size={20} className="animate-spin text-accent" aria-label="Searching" />
@@ -280,6 +340,32 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
                 )}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Paging feedback. The end-of-results line matters: without it, a grid
+            that simply stops looks like a broken picker rather than a finished
+            one. */}
+        {tab !== 'favourites' && !showLoading && error === null && visible.length > 0 && (
+          <div className="py-3 text-center">
+            {loadingMore ? (
+              <Loader2
+                size={16}
+                className="mx-auto animate-spin text-accent"
+                aria-label="Loading more"
+              />
+            ) : hasMore ? (
+              <button
+                type="button"
+                onClick={loadMore}
+                className="press rounded-full border border-border px-3 py-1 text-[0.6875rem]
+                           text-secondary hover:border-accent hover:text-text"
+              >
+                Load more
+              </button>
+            ) : (
+              <span className="text-[0.625rem] text-muted">That&apos;s everything</span>
+            )}
           </div>
         )}
       </div>

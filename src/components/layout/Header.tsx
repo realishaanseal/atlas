@@ -1,39 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Settings,
-  Lock,
-  MonitorSmartphone,
-  Smartphone,
-  LogOut,
-  Check,
   Phone,
   Video as VideoIcon,
-  DoorOpen,
   Sparkles,
   Pin as PinIcon,
   Bell,
   Palette,
   Archive,
+  MonitorSmartphone,
   Zap,
-  Clock,
+  Search,
 } from 'lucide-react';
 import { EmojiManager } from '@/components/chat/EmojiManager';
 import { ThemeManager } from '@/components/chat/ThemeManager';
 import { NotificationSettingsModal } from '@/components/settings/NotificationSettingsModal';
+import { PairDeviceModal } from '@/components/settings/PairDeviceModal';
 import { PinPanel } from '@/components/chat/PinPanel';
 import type { ConnectionState, Pin } from '@/types';
 import type { PeerPresence } from '@/services/presence';
+import { useBackClose } from '@/hooks/useBackGuard';
 import { cn } from '@/utils/cn';
 
 interface HeaderProps {
   peer: PeerPresence;
   connection: ConnectionState;
-  onLock: () => void;
-  onPairNewDevice: () => Promise<void>;
-  onLinkDevice: () => Promise<void>;
-  /** Only the A side can add a second device. */
-  canLinkDevice: boolean;
-  onUnpair: () => Promise<void>;
   onVoiceCall: () => void;
   onVideoCall: () => void;
   peerName: string;
@@ -52,10 +43,7 @@ interface HeaderProps {
   canArchive: boolean;
   onOpenArchive: () => void;
   onOpenBulkReactions: () => void;
-  /** A-side only: manual last-seen. `active` shows the state in the menu. */
-  canSetLastSeen: boolean;
-  lastSeenOverridden: boolean;
-  onOpenLastSeen: () => void;
+  onOpenSearch: () => void;
 }
 
 function relativeTime(timestamp: number): string {
@@ -72,11 +60,6 @@ function relativeTime(timestamp: number): string {
 export function Header({
   peer,
   connection,
-  onLock,
-  onPairNewDevice,
-  onLinkDevice,
-  canLinkDevice,
-  onUnpair,
   onVoiceCall,
   onVideoCall,
   peerName,
@@ -93,18 +76,34 @@ export function Header({
   canArchive,
   onOpenArchive,
   onOpenBulkReactions,
-  canSetLastSeen,
-  lastSeenOverridden,
-  onOpenLastSeen,
+  onOpenSearch,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pairOpen, setPairOpen] = useState(false);
   const [emojiManagerOpen, setEmojiManagerOpen] = useState(false);
   const [themeManagerOpen, setThemeManagerOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
-  const [pairingOpen, setPairingOpen] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
+  useBackClose(menuOpen, () => {
+    setMenuOpen(false);
+  });
+  useBackClose(pinsOpen, () => {
+    setPinsOpen(false);
+  });
+  useBackClose(emojiManagerOpen, () => {
+    setEmojiManagerOpen(false);
+  });
+  useBackClose(themeManagerOpen, () => {
+    setThemeManagerOpen(false);
+  });
+  useBackClose(notifModalOpen, () => {
+    setNotifModalOpen(false);
+  });
+  useBackClose(editing, () => {
+    setEditing(false);
+  });
+
   const menuRef = useRef<HTMLDivElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);
 
@@ -155,36 +154,6 @@ export function Header({
     <header className="glass sticky top-0 z-10 border-b border-border pt-safe">
       <div className="mx-auto flex h-14 max-w-[850px] items-center justify-between px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          {/* Deliberately on the opposite side of the header from the call
-              buttons. It was previously beside them, where a mistap starts a
-              video call instead of ending your session — the two actions are
-              nothing alike and should not be neighbours.
-
-              Permanently red rather than red-on-hover: this is the only
-              control here that discards state, and it should read that way
-              before you touch it.
-
-              window.close() only works for tabs a script opened, so on a
-              normally-opened tab it silently fails — hence the fallback.
-              `replace` rather than `assign` overwrites the history entry, so
-              Back cannot return to the conversation. */}
-          <button
-            type="button"
-            onClick={() => {
-              onLock();
-              window.close();
-              setTimeout(() => {
-                window.location.replace('https://www.google.com');
-              }, 120);
-            }}
-            aria-label="Lock and leave"
-            title="Lock and leave"
-            className="press flex size-9 shrink-0 items-center justify-center rounded-full
-                       text-danger hover:bg-danger/15"
-          >
-            <DoorOpen size={18} aria-hidden />
-          </button>
-
           <div className="min-w-0">
             {editing ? (
               <>
@@ -373,54 +342,6 @@ export function Header({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  void onPairNewDevice().then(() => {
-                    setPairingOpen(true);
-                    setTimeout(() => {
-                      setPairingOpen(false);
-                    }, 5 * 60 * 1000);
-                  });
-                }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                {pairingOpen ? (
-                  <Check size={15} className="text-success" aria-hidden />
-                ) : (
-                  <MonitorSmartphone size={15} className="text-secondary" aria-hidden />
-                )}
-                {pairingOpen ? 'Open for 5 minutes' : 'Pair a new device'}
-              </button>
-
-              {/* Add a SECOND device to your own side (A only), so you can be on
-                  a laptop and a phone at once without unpairing anyone. */}
-              {canLinkDevice && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    void onLinkDevice().then(() => {
-                      setLinkOpen(true);
-                      setTimeout(() => {
-                        setLinkOpen(false);
-                      }, 5 * 60 * 1000);
-                    });
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                             transition-colors duration-150 hover:bg-surface"
-                >
-                  {linkOpen ? (
-                    <Check size={15} className="text-success" aria-hidden />
-                  ) : (
-                    <Smartphone size={15} className="text-secondary" aria-hidden />
-                  )}
-                  {linkOpen ? 'Unlock on your other device now' : 'Add another of my devices'}
-                </button>
-              )}
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
                   setMenuOpen(false);
                   setEmojiManagerOpen(true);
                 }}
@@ -464,6 +385,20 @@ export function Header({
                 role="menuitem"
                 onClick={() => {
                   setMenuOpen(false);
+                  onOpenSearch();
+                }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
+                           transition-colors duration-150 hover:bg-surface"
+              >
+                <Search size={15} className="text-secondary" aria-hidden />
+                Search
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
                   onOpenBulkReactions();
                 }}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
@@ -472,29 +407,6 @@ export function Header({
                 <Zap size={15} className="text-secondary" aria-hidden />
                 Quick reactions
               </button>
-
-              {canSetLastSeen && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onOpenLastSeen();
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                             transition-colors duration-150 hover:bg-surface"
-                >
-                  <Clock
-                    size={15}
-                    className={lastSeenOverridden ? 'text-accent' : 'text-secondary'}
-                    aria-hidden
-                  />
-                  Last seen
-                  {lastSeenOverridden && (
-                    <span className="ml-auto text-[0.625rem] font-medium text-accent">Custom</span>
-                  )}
-                </button>
-              )}
 
               {/* A-side only: the local chat archive. The other device never
                   sees this, by design — only this side keeps the memory. */}
@@ -514,37 +426,38 @@ export function Header({
                 </button>
               )}
 
-              {/* Plain lock: returns to the password screen without leaving
-                  the page. The quick-exit version lives in the header. */}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={onLock}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface"
-              >
-                <Lock size={15} className="text-secondary" aria-hidden />
-                Lock
-              </button>
+              {/* A-side only, for the same reason the archive is: it opens the
+                  window that puts a newcomer on THIS side. Offering it to the
+                  other person would let them quietly add a device to yours. */}
+              {canArchive && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setPairOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm
+                             transition-colors duration-150 hover:bg-surface"
+                >
+                  <MonitorSmartphone size={15} className="text-secondary" aria-hidden />
+                  Add one of my devices
+                </button>
+              )}
 
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void onUnpair();
-                }}
-                className="flex w-full items-center gap-2.5 border-t border-border px-3.5 py-2.5
-                           text-left text-sm text-danger transition-colors
-                           duration-150 hover:bg-surface"
-              >
-                <LogOut size={15} aria-hidden />
-                Unpair this device
-              </button>
             </div>
             )}
           </div>
         </div>
       </div>
+
+      {pairOpen && (
+        <PairDeviceModal
+          onClose={() => {
+            setPairOpen(false);
+          }}
+        />
+      )}
 
       {emojiManagerOpen && (
         <EmojiManager

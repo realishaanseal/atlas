@@ -110,6 +110,29 @@ export async function captureMessages(key: CryptoKey, messages: Message[]): Prom
           mediaId = undefined;
         }
       }
+    } else if (payload.kind === 'file') {
+      mediaId = payload.fileId;
+      mime = payload.mime;
+      if (prior?.mediaMissing) {
+        mediaMissing = true;
+        mediaId = undefined;
+      } else if (!(await store.hasMedia(payload.fileId))) {
+        try {
+          const { downloadBytes } = await import('@/services/files');
+          const bytes = await downloadBytes(key, payload);
+          const media: ArchivedMedia = {
+            id: payload.fileId,
+            kind: 'file',
+            mime: payload.mime,
+            bytes: toArrayBuffer(bytes),
+            byteSize: bytes.length,
+          };
+          await store.putMedia(media);
+        } catch {
+          mediaMissing = true;
+          mediaId = undefined;
+        }
+      }
     } else if (payload.kind === 'video') {
       mediaId = payload.videoId;
       mime = payload.mime;
@@ -155,6 +178,7 @@ export async function captureMessages(key: CryptoKey, messages: Message[]): Prom
       ...(height !== undefined ? { height } : {}),
       ...(mime !== undefined ? { mime } : {}),
       ...(durationMs !== undefined ? { durationMs } : {}),
+      ...(payload.kind === 'file' ? { fileName: payload.name } : {}),
       ...(payload.kind === 'call'
         ? {
             callKind: payload.callKind,

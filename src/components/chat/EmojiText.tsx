@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { EMOJI } from '@/config';
+import { findDateTimes } from '@/utils/datetime';
+import { DateChip } from './DateChip';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
 import { useMentionNames } from '@/hooks/useMentionNames';
 import { cn } from '@/utils/cn';
@@ -24,6 +26,15 @@ import type { ParticipantId } from '@/types';
 const CUSTOM_EMOJI_NAME = /[a-z0-9_]{2,32}/;
 
 /**
+ * The message text, used as the calendar event title.
+ *
+ * Module-scoped rather than threaded through renderInline's signature: that
+ * function is recursive and already takes a size and a key prefix, and the
+ * title is constant for the whole render pass.
+ */
+let titleForEvent = '';
+
+/**
  * One inline token, in precedence order: code / spoiler / bold / italic /
  * custom emoji. Code wins, so `*x*` inside backticks stays literal; `**` is
  * tried before `*`, so `**x**` is bold rather than two italics. Emphasis and
@@ -46,6 +57,7 @@ type Inline =
   | { t: 'emoji'; name: string; url: string }
   | { t: 'mention'; slot: ParticipantId }
   | { t: 'link'; href: string; label: string }
+  | { t: 'date'; label: string; at: number; hasTime: boolean }
   | { t: 'spoiler'; inner: Inline[] }
   | { t: 'bold'; inner: Inline[] }
   | { t: 'italic'; inner: Inline[] };
@@ -123,6 +135,46 @@ function parseBlocks(text: string, byName: Emoji): Block[] {
   }
 
   return blocks;
+}
+
+/**
+ * Splits plain-text nodes on any dates they contain.
+ *
+ * Run as a SECOND pass over the already-tokenised tree rather than as another
+ * alternative in the inline regex. Two reasons: a date inside `code` or a URL
+ * must stay literal, and the date grammar is far too loose to compete with the
+ * formatting tokens for precedence. Recursing into bold/italic/spoiler means a
+ * date still works inside them.
+ */
+function splitDates(nodes: Inline[], baseMs: number): Inline[] {
+  const out: Inline[] = [];
+
+  for (const node of nodes) {
+    if (node.t === 'bold' || node.t === 'italic' || node.t === 'spoiler') {
+      out.push({ ...node, inner: splitDates(node.inner, baseMs) });
+      continue;
+    }
+    if (node.t !== 'text') {
+      out.push(node);
+      continue;
+    }
+
+    const matches = findDateTimes(node.v, baseMs);
+    if (matches.length === 0) {
+      out.push(node);
+      continue;
+    }
+
+    let cursor = 0;
+    for (const match of matches) {
+      if (match.index > cursor) out.push({ t: 'text', v: node.v.slice(cursor, match.index) });
+      out.push({ t: 'date', label: match.text, at: match.at, hasTime: match.hasTime });
+      cursor = match.index + match.length;
+    }
+    if (cursor < node.v.length) out.push({ t: 'text', v: node.v.slice(cursor) });
+  }
+
+  return out;
 }
 
 /** True when the whole message is only emoji (plus whitespace), and how many. */
@@ -222,6 +274,16 @@ function renderInline(nodes: Inline[], size: number, keyPrefix = ''): ReactNode[
         return <em key={key}>{renderInline(node.inner, size, `${key}-`)}</em>;
       case 'mention':
         return <Mention key={key} slot={node.slot} />;
+      case 'date':
+        return (
+          <DateChip
+            key={key}
+            label={node.label}
+            at={node.at}
+            hasTime={node.hasTime}
+            title={titleForEvent}
+          />
+        );
       case 'link':
         // Scheme is constrained to http(s) by the tokenizer, so there is no
         // javascript:/data: surface here. New tab, no referrer, no opener.
@@ -251,14 +313,33 @@ const HEADING_CLASS: Record<1 | 2 | 3, string> = {
 
 const HEADING_TAG: Record<1 | 2 | 3, 'h1' | 'h2' | 'h3'> = { 1: 'h1', 2: 'h2', 3: 'h3' };
 
-export function EmojiText({ text }: { text: string }) {
+export function EmojiText({ text, createdAt }: { text: string; createdAt?: number }) {
   const { byName } = useCustomEmoji();
+
+  // The whole message becomes the calendar event's title, so "meeting tomorrow
+  // at 5" produces an event called that rather than one called "tomorrow at 5".
+  titleForEvent = text.trim();
 
   const parsed = useMemo(() => {
     const jumbo = jumboCheck(text, byName);
     if (jumbo.jumbo) return { kind: 'jumbo' as const, nodes: parseInline(text, byName) };
-    return { kind: 'blocks' as const, blocks: parseBlocks(text, byName) };
-  }, [text, byName]);
+
+    const blocks = parseBlocks(text, byName);
+    // Dates are only resolvable against the message's own send time; without it
+    // "tomorrow" has no meaning, so the pass is skipped entirely.
+    if (createdAt === undefined) return { kind: 'blocks' as const, blocks };
+
+    return {
+      kind: 'blocks' as const,
+      blocks: blocks.map((block) =>
+        block.t === 'h'
+          ? { ...block, nodes: splitDates(block.nodes, createdAt) }
+          : block.t === 'ul'
+            ? { ...block, items: block.items.map((item) => splitDates(item, createdAt)) }
+            : { ...block, lines: block.lines.map((line) => splitDates(line, createdAt)) },
+      ),
+    };
+  }, [text, byName, createdAt]);
 
   if (parsed.kind === 'jumbo') {
     return (

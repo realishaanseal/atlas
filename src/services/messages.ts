@@ -143,6 +143,25 @@ function isValidVideoPayload(value: unknown): value is Extract<MessagePayload, {
   );
 }
 
+function isValidFilePayload(value: unknown): value is Extract<MessagePayload, { kind: 'file' }> {
+  if (typeof value !== 'object' || value === null) return false;
+  const p = value as Record<string, unknown>;
+
+  return (
+    p['kind'] === 'file' &&
+    typeof p['fileId'] === 'string' &&
+    ID_PATTERN.test(p['fileId']) &&
+    typeof p['name'] === 'string' &&
+    p['name'].length > 0 &&
+    p['name'].length <= 200 &&
+    typeof p['mime'] === 'string' &&
+    isBounded(p['byteSize'], 100_000_000) &&
+    (p['chunks'] === undefined || isBounded(p['chunks'], 64)) &&
+    typeof p['wrappedKey'] === 'object' &&
+    p['wrappedKey'] !== null
+  );
+}
+
 function isValidCallPayload(value: unknown): value is Extract<MessagePayload, { kind: 'call' }> {
   if (typeof value !== 'object' || value === null) return false;
   const p = value as Record<string, unknown>;
@@ -255,7 +274,8 @@ function sanitiseReply(value: unknown): ReplyRef | undefined {
     r['kind'] !== 'text' &&
     r['kind'] !== 'image' &&
     r['kind'] !== 'audio' &&
-    r['kind'] !== 'video'
+    r['kind'] !== 'video' &&
+    r['kind'] !== 'file'
   ) {
     return undefined;
   }
@@ -299,11 +319,33 @@ async function decryptBody(key: CryptoKey, envelope: EncryptedEnvelope): Promise
 
   const parsed: unknown = JSON.parse(decodeUtf8(body));
   if (isValidCallPayload(parsed)) return parsed;
-  if (isValidImagePayload(parsed) || isValidAudioPayload(parsed) || isValidVideoPayload(parsed)) {
+  if (
+    isValidImagePayload(parsed) ||
+    isValidAudioPayload(parsed) ||
+    isValidVideoPayload(parsed) ||
+    isValidFilePayload(parsed)
+  ) {
     const replyTo = sanitiseReply((parsed as Record<string, unknown>)['replyTo']);
     return { ...parsed, ...(replyTo ? { replyTo } : {}) };
   }
   throw new AppError('decrypt-failed');
+}
+
+/**
+ * Three honest tiers, in order of certainty:
+ *
+ *   sent      — the server has it; the peer's device may not
+ *   delivered — the peer's device confirmed receipt
+ *   read      — the peer actually had it on screen
+ *
+ * Previously anything the server held counted as 'delivered', which meant two
+ * ticks appeared even if the other phone had been off for a week. Deriving it
+ * from the receipts the recipient writes makes each tier mean what it says.
+ */
+function deliveryState(data: MessageDoc): DeliveryState {
+  if (data.readAt !== undefined) return 'read';
+  if (data.deliveredAt !== undefined) return 'delivered';
+  return 'sent';
 }
 
 /**
@@ -342,12 +384,15 @@ export interface PendingSend {
 export async function prepare(
   key: CryptoKey,
   payload: MessagePayload,
+  /** Lifetime for this message. Clamped to the 24h ceiling the rules enforce. */
+  retentionMs: number = RETENTION_MS,
 ): Promise<PendingSend> {
   const createdAt = Date.now();
+  const lifetime = Math.min(Math.max(retentionMs, 60_000), RETENTION_MS);
   return {
     id: randomId(),
     createdAt,
-    expiresAt: createdAt + RETENTION_MS,
+    expiresAt: createdAt + lifetime,
     body: await encryptPayload(key, payload),
   };
 }
@@ -446,7 +491,8 @@ export function subscribe(
                 expiresAt: data.expiresAt,
                 payload: await decryptPayload(key, data),
                 reactions: await decryptReactions(key, data.reactions),
-                state: (data.readAt !== undefined ? 'read' : 'delivered') satisfies DeliveryState,
+                state: deliveryState(data),
+                ...(data.deliveredAt !== undefined ? { deliveredAt: data.deliveredAt } : {}),
                 ...(data.readAt !== undefined ? { readAt: data.readAt } : {}),
                 ...(await editFields(key, data)),
               };
@@ -495,7 +541,8 @@ export async function fetchByIds(key: CryptoKey, ids: string[]): Promise<Message
           expiresAt: data.expiresAt,
           payload: await decryptPayload(key, data),
           reactions: await decryptReactions(key, data.reactions),
-          state: (data.readAt !== undefined ? 'read' : 'delivered') satisfies DeliveryState,
+          state: deliveryState(data),
+          ...(data.deliveredAt !== undefined ? { deliveredAt: data.deliveredAt } : {}),
           ...(data.readAt !== undefined ? { readAt: data.readAt } : {}),
           ...(await editFields(key, data)),
         };
@@ -551,6 +598,20 @@ export async function editMessage(
 export async function markRead(messageId: string): Promise<void> {
   const { db } = getServices();
   await updateDoc(doc(db, paths.message(messageId)), { readAt: Date.now() });
+}
+
+/**
+ * Recipient stamps deliveredAt. Rules enforce that only the non-sender may, and
+ * only once.
+ *
+ * Called as soon as the message arrives in a snapshot, whether or not the tab is
+ * visible — unlike markRead, which deliberately waits for the person to actually
+ * be looking. That difference is the entire distinction between two ticks and
+ * two coloured ticks.
+ */
+export async function markDelivered(messageId: string): Promise<void> {
+  const { db } = getServices();
+  await updateDoc(doc(db, paths.message(messageId)), { deliveredAt: Date.now() });
 }
 
 /**

@@ -1,3 +1,4 @@
+import { APP_NAME } from '@/config';
 import type { ArchiveSnapshot } from '@/services/archive';
 import type { ArchivedEmoji, ArchivedMedia, ArchivedMessage } from '@/storage/archive';
 import type { ParticipantId } from '@/types';
@@ -262,6 +263,18 @@ function bodyHtml(record: ArchivedMessage, media: Map<string, ArchivedMedia>, ct
     return `<div class="gone">🖼️ image no longer available</div>`;
   }
 
+  if (record.kind === 'file') {
+    const label = escapeHtml(record.fileName ?? 'Attachment');
+    if (record.mediaId && media.has(record.mediaId)) {
+      // Inlined as a data URI with a download attribute, so the attachment
+      // survives inside the single exported file rather than pointing at a
+      // machine you may no longer have.
+      const uri = mediaDataUri(media.get(record.mediaId) as ArchivedMedia);
+      return `<a class="file" href="${uri}" download="${label}">📎 ${label}</a>`;
+    }
+    return `<div class="gone">📎 ${label} — not saved</div>`;
+  }
+
   if (record.kind === 'video') {
     if (record.mediaId && media.has(record.mediaId)) {
       const uri = mediaDataUri(media.get(record.mediaId) as ArchivedMedia);
@@ -353,7 +366,11 @@ function buildHtml(snapshot: ArchiveSnapshot, options: ExportOptions): string {
   });
 
   const count = snapshot.messages.length;
-  const title = `Atlas chat with ${options.peerName}`;
+  // The exported file goes to the Downloads folder, where its name and its tab
+  // title are visible to anyone who opens the folder — which is a wider
+  // audience than the app itself ever has. Named after the public site for
+  // that reason; the peer's name stays inside the document.
+  const title = `${APP_NAME} archive — ${options.peerName}`;
 
   return `<!doctype html>
 <html lang="en">
@@ -392,6 +409,9 @@ function buildHtml(snapshot: ArchiveSnapshot, options: ExportOptions): string {
   .bubble a { color: inherit; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
   .ce { display: inline-block; object-fit: contain; vertical-align: text-bottom; margin-bottom: -2px; }
   .media { max-width: 320px; max-height: 380px; width: auto; height: auto; border-radius: 10px; display: block; }
+  .file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px;
+    background: rgba(255,255,255,.1); color: inherit; text-decoration: none; word-break: break-all; }
+  .file:hover { background: rgba(255,255,255,.18); }
   .voice { display: flex; align-items: center; gap: 8px; }
   .voice audio { height: 34px; }
   .dur { color: inherit; opacity: .7; font-size: 12px; }
@@ -437,7 +457,7 @@ export function downloadHtmlExport(snapshot: ArchiveSnapshot, options: ExportOpt
   const stamp = new Date().toISOString().slice(0, 10);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `atlas-chat-${stamp}.html`;
+  anchor.download = `mechcodes-archive-${stamp}.html`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

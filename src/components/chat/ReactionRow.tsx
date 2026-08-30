@@ -220,15 +220,20 @@ export function ReactionPicker({
     <div
       ref={rootRef}
       className={cn(
-        'glass animate-scale-in stagger absolute bottom-full z-30 mb-1 flex items-center gap-1',
-        'rounded-full border border-border px-2 py-1.5 shadow-lift',
+        'glass animate-scale-in stagger absolute bottom-full z-30 mb-1 flex items-center',
+        // Tighter on phones. The full strip is ten controls wide, which
+        // overflowed a 412px screen and had to be scrolled sideways to reach
+        // the custom emoji — so on small screens it shows fewer, smaller ones
+        // (see the `hidden sm:flex` on the extras below) and everything fits.
+        'gap-0.5 rounded-full border border-border px-1.5 py-1 shadow-lift',
+        'sm:gap-1 sm:px-2 sm:py-1.5',
         // Anchored on the side nearest the bubble so it grows OUTWARD into the
         // empty space, never back over the message: right-anchored for your own
         // (right-aligned) messages, left-anchored for the other person's.
         mine ? 'right-0 sm:right-full sm:mr-1' : 'left-0 sm:left-full sm:ml-1',
       )}
     >
-      {favourites.map((emoji) => (
+      {favourites.map((emoji, index) => (
         <button
           key={emoji}
           type="button"
@@ -238,8 +243,10 @@ export function ReactionPicker({
           aria-label={`React ${emoji}`}
           aria-pressed={current.includes(emoji)}
           className={cn(
-            'flex size-10 items-center justify-center rounded-full text-2xl',
+            'flex size-9 items-center justify-center rounded-full text-xl sm:size-10 sm:text-2xl',
             'transition-transform duration-150 ease-spring hover:scale-125',
+            // Three favourites on a phone, five on a wider screen.
+            index >= 3 && 'hidden sm:flex',
             current.includes(emoji) && 'bg-accent-solid/30',
           )}
         >
@@ -251,8 +258,10 @@ export function ReactionPicker({
           favourites. A newly uploaded emoji is the one you most want to use, so
           recency beats alphabetical here — unlike the manager, which sorts by
           name because there you are looking something up. */}
-      {quickCustom.length > 0 && <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />}
-      {quickCustom.map((emoji) => (
+      {quickCustom.length > 0 && (
+        <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
+      )}
+      {quickCustom.map((emoji, index) => (
         <button
           key={emoji.id}
           type="button"
@@ -262,21 +271,19 @@ export function ReactionPicker({
           aria-label={`React :${emoji.name}:`}
           aria-pressed={current.includes(`custom:${emoji.id}`)}
           className={cn(
-            'flex size-10 items-center justify-center rounded-full',
+            'flex size-9 items-center justify-center rounded-full sm:size-10',
             'transition-transform duration-150 ease-spring hover:scale-125',
+            // One custom emoji on a phone, three on a wider screen. The rest
+            // are a tap away in the full picker.
+            index >= 1 && 'hidden sm:flex',
             current.includes(`custom:${emoji.id}`) && 'bg-accent-solid/30',
           )}
         >
-          <img
-            src={emoji.url}
-            alt=""
-            aria-hidden
-            className="size-7 object-contain"
-          />
+          <img src={emoji.url} alt="" aria-hidden className="size-6 object-contain sm:size-7" />
         </button>
       ))}
 
-      <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
+      <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
 
       <button
         type="button"
@@ -284,10 +291,10 @@ export function ReactionPicker({
           setFullOpen(true);
         }}
         aria-label="Choose another emoji"
-        className="press flex size-10 items-center justify-center rounded-full text-secondary
-                   hover:bg-surface-raised hover:text-accent"
+        className="press flex size-9 items-center justify-center rounded-full text-secondary
+                   hover:bg-surface-raised hover:text-accent sm:size-10"
       >
-        <SmilePlus size={19} aria-hidden />
+        <SmilePlus size={18} aria-hidden />
       </button>
 
       {/* Quick-react: apply the whole preset at once. Same action as the ⚡ in
@@ -300,10 +307,10 @@ export function ReactionPicker({
             onClose();
           }}
           aria-label={`Quick-react with ${String(bulkCount)} emoji`}
-          className="press flex size-10 items-center justify-center rounded-full text-secondary
-                     hover:bg-surface-raised hover:text-accent"
+          className="press flex size-9 items-center justify-center rounded-full text-secondary
+                     hover:bg-surface-raised hover:text-accent sm:size-10"
         >
-          <Zap size={19} aria-hidden />
+          <Zap size={18} aria-hidden />
         </button>
       )}
 
@@ -312,7 +319,7 @@ export function ReactionPicker({
           there is no hover bar, so the picker carries the handoff. */}
       {onMore && (
         <>
-          <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
+          <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
           <button
             type="button"
             onClick={() => {
@@ -320,10 +327,10 @@ export function ReactionPicker({
               onClose();
             }}
             aria-label="More actions"
-            className="press flex size-10 items-center justify-center rounded-full text-secondary
-                       hover:bg-surface-raised hover:text-accent"
+            className="press flex size-9 items-center justify-center rounded-full text-secondary
+                       hover:bg-surface-raised hover:text-accent sm:size-10"
           >
-            <MoreHorizontal size={19} aria-hidden />
+            <MoreHorizontal size={18} aria-hidden />
           </button>
         </>
       )}

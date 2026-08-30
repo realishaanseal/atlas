@@ -60,7 +60,10 @@ export async function setup(passphrase: string): Promise<UnlockedSession> {
 export async function unlock(passphrase: string): Promise<UnlockedSession> {
   const delay = await throttle.getDelayMs();
   if (delay > 0) {
-    throw new AppError('unknown', `Too many attempts. Wait ${Math.ceil(delay / 1000)}s.`);
+    // The remaining seconds travel as the message; the wording is chosen by
+    // whichever screen is asking, since the public site and the passphrase
+    // screen describe the same condition very differently.
+    throw new AppError('rate-limited', String(Math.ceil(delay / 1000)));
   }
 
   await ensureSignedIn();
@@ -78,7 +81,7 @@ export async function unlock(passphrase: string): Promise<UnlockedSession> {
 
   if (!(await checkVerifier(key, kdf.verifier))) {
     await throttle.recordFailure();
-    throw new AppError('bad-passphrase');
+    throw new AppError('bad-key');
   }
 
   // Correct passphrase. Only now do we touch pairing.

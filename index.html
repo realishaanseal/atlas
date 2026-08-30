@@ -2,36 +2,25 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <!-- `interactive-widget=resizes-content` makes the on-screen keyboard shrink
-         the layout viewport instead of sliding over it, so the composer stays
-         visible above the keyboard rather than being covered by it. -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#09090B" />
+    <meta name="theme-color" content="#0b0e14" />
 
-    <title>Atlas</title>
-    <meta name="description" content="Private workspace." />
+    <title>MechCodes — Working Mech Arena promo codes</title>
+    <meta name="description" content="Working Mech Arena promo codes, checked before they go up." />
 
-    <!-- Deliberately opaque to crawlers and link previews. -->
     <meta name="robots" content="noindex, nofollow, noarchive, noimageindex" />
     <meta name="referrer" content="no-referrer" />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-
-    <!-- Inter is bundled rather than loaded from Google Fonts.
-         Two reasons: it removes a third-party origin from the CSP, and it
-         removes a render-blocking request to a server that would otherwise
-         see every page load — which, for an app whose premise is that nobody
-         watches your conversation, is a small contradiction worth closing. -->
   </head>
   <body>
     <div id="root"></div>
-    <noscript>This workspace requires JavaScript.</noscript>
+    <noscript>This site needs JavaScript enabled.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

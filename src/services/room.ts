@@ -28,6 +28,18 @@ export interface RoomState {
   readonly repairOpen: boolean;
 }
 
+/**
+ * Whether this uid holds any of the A-side slots.
+ *
+ * One helper rather than the same three-way comparison repeated in four places,
+ * because adding deviceA3 meant every one of those places had to change and
+ * missing one would have shown up as a device that unlocks but reports the wrong
+ * side — which looks like a data problem rather than a missed condition.
+ */
+function isMineOnA(data: RoomDoc, uid: string): boolean {
+  return data.deviceA === uid || data.deviceA2 === uid || data.deviceA3 === uid;
+}
+
 export async function readRoom(): Promise<RoomState> {
   const { db, auth } = getServices();
   const uid = auth.currentUser?.uid;
@@ -39,8 +51,11 @@ export async function readRoom(): Promise<RoomState> {
   }
 
   const data = snapshot.data() as RoomDoc;
-  const slot: ParticipantId | null =
-    data.deviceA === uid || data.deviceA2 === uid ? 'a' : data.deviceB === uid ? 'b' : null;
+  const slot: ParticipantId | null = isMineOnA(data, uid)
+    ? 'a'
+    : data.deviceB === uid
+      ? 'b'
+      : null;
 
   return {
     exists: true,
@@ -61,6 +76,7 @@ export async function createRoom(): Promise<ParticipantId> {
     createdAt: Date.now(),
     deviceA: uid,
     deviceA2: null,
+    deviceA3: null,
     deviceB: null,
     repairUntil: 0,
     linkTarget: null,
@@ -89,41 +105,55 @@ export async function claimSlot(): Promise<ParticipantId> {
 
     const data = snapshot.data() as RoomDoc;
     const deviceA2 = data.deviceA2 ?? null;
+    const deviceA3 = data.deviceA3 ?? null;
     const linkTarget = data.linkTarget ?? null;
 
-    if (data.deviceA === uid || deviceA2 === uid) return 'a';
+    if (isMineOnA(data, uid)) return 'a';
     if (data.deviceB === uid) return 'b';
 
     // "Add another of my own devices": an A device opened a link window, so this
-    // newcomer fills the empty second A slot and joins the A side.
+    // newcomer fills the first empty A slot and joins the A side.
     //
     // The claim writes ONLY the slot, never repairUntil/linkTarget — a device
     // that is not paired yet cannot satisfy the rule that guards those two, and
     // it does not need to: the window expires on its own, and the next
     // open-window call resets the intent.
-    if (linkTarget === 'a' && deviceA2 === null && data.repairUntil > Date.now()) {
-      tx.update(ref, { deviceA2: uid });
-      return 'a';
+    if (linkTarget === 'a' && data.repairUntil > Date.now()) {
+      if (deviceA2 === null) {
+        tx.update(ref, { deviceA2: uid });
+        return 'a';
+      }
+      if (deviceA3 === null) {
+        tx.update(ref, { deviceA3: uid });
+        return 'a';
+      }
     }
 
     if (data.deviceA === null) {
       tx.update(ref, { deviceA: uid });
       return 'a';
     }
-    if (data.deviceB === null) {
-      tx.update(ref, { deviceB: uid });
-      return 'b';
-    }
 
-    // Both taken. Only a re-pair window (NOT a link window) allows a takeover of
-    // B — so "add another of my devices" can never displace the other person,
-    // even if it is opened when the second A slot is already full.
-    if (data.repairUntil > Date.now() && linkTarget !== 'a') {
-      tx.update(ref, { deviceB: uid });
-      return 'b';
-    }
-
-    throw new AppError('device-not-paired');
+    /**
+     * Slot B, taken whether or not it is already occupied.
+     *
+     * The B device browses privately, so its anonymous uid is thrown away at the
+     * end of every session. Under the old rule the slot stayed pinned to a uid
+     * that no longer existed on any device, which locked the other person out
+     * permanently — the previous holder could not release it, because it was
+     * gone.
+     *
+     * So this is now unconditional, and the matching relaxation lives in
+     * `slotBOk` in firestore.rules. Read the comment there before changing
+     * either: the two only make sense together, and the security note belongs
+     * with the rule, since the rule is the part that is actually enforced.
+     *
+     * Note this is reached only AFTER unlock() has verified the passphrase, so
+     * our own client never gets here without the key. That is a property of this
+     * code path and not of the rules, which cannot check it.
+     */
+    tx.update(ref, { deviceB: uid });
+    return 'b';
   });
 }
 
@@ -174,9 +204,11 @@ export async function releaseSlot(): Promise<void> {
       ? 'deviceA'
       : data.deviceA2 === uid
         ? 'deviceA2'
-        : data.deviceB === uid
-          ? 'deviceB'
-          : null;
+        : data.deviceA3 === uid
+          ? 'deviceA3'
+          : data.deviceB === uid
+            ? 'deviceB'
+            : null;
   if (field === null) return;
 
   await updateDoc(doc(db, paths.room()), { [field]: null });

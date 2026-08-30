@@ -41,13 +41,15 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/rooms/$(roomId)).data;
     }
 
-    // The A side may hold two devices — deviceA and the optional deviceA2 — so
-    // one person can be on a laptop and a phone at once. get() with a default
-    // tolerates rooms created before deviceA2 existed. The B side stays single.
+    // The A side may hold three devices — deviceA plus the optional deviceA2 and
+    // deviceA3 — so one person can be on two laptops and a phone at once. get()
+    // with a default tolerates rooms created before each field existed, which is
+    // what makes adding a slot a non-migration. The B side stays single.
     function isA(roomId) {
       return signedIn()
         && (roomData(roomId).deviceA == uid()
-            || roomData(roomId).get('deviceA2', null) == uid());
+            || roomData(roomId).get('deviceA2', null) == uid()
+            || roomData(roomId).get('deviceA3', null) == uid());
     }
 
     function isB(roomId) {
@@ -127,21 +129,29 @@ service cloud.firestore {
       allow list: if false;
 
       // First device to arrive creates the room and claims slot A. New rooms
-      // carry the second-A slot and link marker from the start; older rooms do
-      // not, and the rules below read those two via get() so both shapes work.
+      // carry every extra A slot and the link marker from the start; older rooms
+      // do not, and the rules below read those via get() so both shapes work.
+      //
+      // `hasOnly` is an exact whitelist, so this list has to be kept in step
+      // with what createRoom() actually writes. It was not, when deviceA3 was
+      // added: the client started writing a field the rule did not permit, which
+      // would have rejected room creation outright. Nothing noticed because the
+      // room already existed — it would only have surfaced during a rebuild,
+      // which is the worst possible moment to discover it.
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(
-             ['schemaVersion', 'createdAt', 'deviceA', 'deviceA2', 'deviceB',
-              'repairUntil', 'linkTarget'])
+             ['schemaVersion', 'createdAt', 'deviceA', 'deviceA2', 'deviceA3',
+              'deviceB', 'repairUntil', 'linkTarget'])
         && request.resource.data.schemaVersion == 1
         && request.resource.data.createdAt >= now() - 60000
         && request.resource.data.deviceA == uid()
-        && request.resource.data.deviceA2 == null
+        && request.resource.data.get('deviceA2', null) == null
+        && request.resource.data.get('deviceA3', null) == null
         && request.resource.data.deviceB == null
         && request.resource.data.repairUntil == 0
         && request.resource.data.linkTarget == null;
 
-      // Slot transitions. A slot may be:
+      // Slot transitions for the A side. An A slot may be:
       //   - left unchanged
       //   - claimed, if currently empty
       //   - released, by its own occupant
@@ -154,23 +164,63 @@ service cloud.firestore {
           || (resource.data.repairUntil > now() && newSlot == uid());
       }
 
-      // No uid may occupy two DIFFERENT slots. Two A devices are the point, so
-      // deviceA and deviceA2 differing is required, but neither A slot may equal
-      // deviceB.
+      /**
+       * Slot B is deliberately open: any signed-in device may take it at any
+       * time, even while occupied.
+       *
+       * The reason is practical. The B device browses in private mode, so its
+       * anonymous uid is discarded every session and the slot would otherwise
+       * stay locked to a uid that no longer exists anywhere, with nobody able to
+       * release it.
+       *
+       * What this costs, stated plainly rather than buried: these rules cannot
+       * check passphrase knowledge — they see an authenticated anonymous uid and
+       * nothing else — so "anyone who knows the passphrase" is in practice
+       * "anyone at all". Somebody who found the site, dug the room id out of the
+       * bundle and drove the SDK directly could seize this slot, evict the B
+       * device, and write junk that appears to come from it.
+       *
+       * What it does NOT cost: they still cannot read anything. Every payload is
+       * AES-256-GCM and the key is derived from the passphrase on-device and
+       * never transmitted, so an occupied slot buys ciphertext and nothing else.
+       *
+       * The unlock throttle does not protect this. It is client-side, so it only
+       * ever slows down someone typing guesses into our own UI.
+       */
+      function slotBOk(newSlot) {
+        return newSlot == resource.data.deviceB
+          || newSlot == uid()
+          || (resource.data.deviceB == uid() && newSlot == null);
+      }
+
+      // No uid may occupy two DIFFERENT slots. Several A devices are the point,
+      // so the A slots differing from each other is required — but no A slot may
+      // equal deviceB, or one device would be both sides of the conversation and
+      // could stamp its own read receipts.
+      //
+      // Written out in full rather than looped because Security Rules have no
+      // loops, and every pair genuinely has to be checked.
       function distinctSlots(d) {
         return (d.deviceA == null || d.deviceA != d.deviceB)
           && (d.get('deviceA2', null) == null || d.get('deviceA2', null) != d.deviceB)
+          && (d.get('deviceA3', null) == null || d.get('deviceA3', null) != d.deviceB)
           && (d.get('deviceA2', null) == null || d.deviceA == null
-              || d.get('deviceA2', null) != d.deviceA);
+              || d.get('deviceA2', null) != d.deviceA)
+          && (d.get('deviceA3', null) == null || d.deviceA == null
+              || d.get('deviceA3', null) != d.deviceA)
+          && (d.get('deviceA3', null) == null || d.get('deviceA2', null) == null
+              || d.get('deviceA3', null) != d.get('deviceA2', null));
       }
 
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['deviceA', 'deviceA2', 'deviceB', 'repairUntil', 'linkTarget'])
+             .hasOnly(['deviceA', 'deviceA2', 'deviceA3', 'deviceB', 'repairUntil', 'linkTarget'])
         && slotOk(resource.data.deviceA, request.resource.data.deviceA)
         && slotOk(resource.data.get('deviceA2', null),
                   request.resource.data.get('deviceA2', null))
-        && slotOk(resource.data.deviceB, request.resource.data.deviceB)
+        && slotOk(resource.data.get('deviceA3', null),
+                  request.resource.data.get('deviceA3', null))
+        && slotBOk(request.resource.data.deviceB)
         && distinctSlots(request.resource.data)
         // Only an already-paired device may open a re-pair window, and it may
         // open it for at most 5 minutes.
@@ -236,21 +286,12 @@ service cloud.firestore {
         // self-healing: claim the slot, and presence starts working.
         allow create, update: if isPaired(roomId)
           && request.resource.data.keys().hasOnly(
-               ['owner', 'online', 'lastSeen', 'typingUntil', 'lastSeenOverride'])
+               ['owner', 'online', 'lastSeen', 'typingUntil'])
           && request.resource.data.owner == uid()
           && ((slot == 'a' && isA(roomId)) || (slot == 'b' && isB(roomId)))
           && request.resource.data.online is bool
           && request.resource.data.lastSeen >= now() - 60000
           && request.resource.data.lastSeen <= now() + 60000
-          // A display-only "last seen" the owner may set to any time within the
-          // past year and not in the future. `lastSeen` above stays pinned to the
-          // real clock — the staleness logic depends on it — so this is a
-          // separate field the peer's client renders instead, never a way to
-          // forge the value the protocol itself relies on.
-          && (!('lastSeenOverride' in request.resource.data)
-              || (request.resource.data.lastSeenOverride is int
-                  && request.resource.data.lastSeenOverride > now() - 31536000000
-                  && request.resource.data.lastSeenOverride <= now() + 60000))
           // Typing indicator is self-expiring and capped, so a buggy or
           // malicious client cannot pin it on indefinitely.
           && request.resource.data.typingUntil is int
@@ -299,7 +340,13 @@ service cloud.firestore {
           && request.resource.data.createdAt is int
           && request.resource.data.createdAt >= now() - 60000
           && request.resource.data.createdAt <= now() + 604800000
-          && request.resource.data.expiresAt == request.resource.data.createdAt + 86400000
+          // Retention is chosen per message, but only DOWNWARD: anything from a
+          // minute up to the standard 24 hours. The ceiling is the point — a
+          // client cannot opt out of retention or keep a message indefinitely,
+          // which was the original guarantee. Shorter is always allowed because
+          // it only ever destroys data sooner.
+          && request.resource.data.expiresAt > request.resource.data.createdAt
+          && request.resource.data.expiresAt <= request.resource.data.createdAt + 86400000
           // ~12 KB ciphertext ceiling. Text is padded to at most 4096 bytes
           // before encryption; image messages carry only a wrapped key and a
           // small blur preview, never the image itself.
@@ -313,6 +360,21 @@ service cloud.firestore {
           && request.resource.data.readAt >= now() - 60000
           && request.resource.data.readAt <= now() + 60000
           // Only the party who did NOT send it can mark it read.
+          && ((resource.data.sender == 'a' && isB(roomId))
+              || (resource.data.sender == 'b' && isA(roomId)));
+
+        // Delivery receipt, same shape as readAt: the recipient — and only the
+        // recipient — stamps it exactly once, and it cannot be moved afterwards.
+        // Kept as its own field rather than inferred from the document existing,
+        // because "the server has it" and "their device has it" are genuinely
+        // different facts, and the second tick is only meaningful if it means
+        // the latter.
+        allow update: if isPaired(roomId)
+          && notExpired(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deliveredAt'])
+          && !('deliveredAt' in resource.data)
+          && request.resource.data.deliveredAt >= now() - 60000
+          && request.resource.data.deliveredAt <= now() + 60000
           && ((resource.data.sender == 'a' && isB(roomId))
               || (resource.data.sender == 'b' && isA(roomId)));
 
@@ -463,6 +525,37 @@ service cloud.firestore {
 
         // Write-once except expiresAt, so a pinned video can outlive the sweep;
         // see the images rule for the full reasoning.
+        allow update: if isPaired(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is int
+          && (request.resource.data.expiresAt == pinKeepUntil()
+              || request.resource.data.expiresAt <= now() + 86400000);
+
+        allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
+      }
+
+      // --- file attachments -------------------------------------------------
+      //
+      // Same shape as videos: encrypted bytes, chunked across documents, each
+      // chunk with its own 24h expiry so the sweep collects them without knowing
+      // they are chunks. The filename and MIME live inside the message payload,
+      // encrypted — never here, where they would describe the conversation in
+      // the clear.
+
+      match /files/{fileId} {
+
+        allow get: if isPaired(roomId) && notExpired(resource.data);
+        allow list: if isPaired(roomId);
+
+        allow create: if isPaired(roomId)
+          && fileId.matches('^[A-Za-z0-9_-]{22,64}$')
+          && request.resource.data.keys().hasOnly(
+               ['owner', 'createdAt', 'expiresAt', 'data'])
+          && request.resource.data.owner == uid()
+          && validRetention(request.resource.data)
+          && validEnvelope(request.resource.data.data, 1000000);
+
+        // Write-once except expiresAt, so a pinned file can outlive the sweep.
         allow update: if isPaired(roomId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
           && request.resource.data.expiresAt is int

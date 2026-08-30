@@ -1,4 +1,4 @@
-import { X, Image as ImageIcon, Film, Mic, Pin } from 'lucide-react';
+import { X, Image as ImageIcon, Film, Paperclip, Mic, Pin } from 'lucide-react';
 import { useMentionNames } from '@/hooks/useMentionNames';
 import { resolveMentionsPlain } from '@/utils/mention';
 import type { Pin as PinType } from '@/types';
@@ -18,6 +18,7 @@ interface PinPanelProps {
 function KindIcon({ kind }: { kind: PinType['kind'] }) {
   if (kind === 'image') return <ImageIcon size={12} className="shrink-0 text-muted" aria-hidden />;
   if (kind === 'video') return <Film size={12} className="shrink-0 text-muted" aria-hidden />;
+  if (kind === 'file') return <Paperclip size={12} className="shrink-0 text-muted" aria-hidden />;
   if (kind === 'audio') return <Mic size={12} className="shrink-0 text-muted" aria-hidden />;
   return null;
 }

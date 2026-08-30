@@ -11,6 +11,7 @@ import { DateSeparator, UnreadSeparator } from '@/components/chat/Separators';
 import { buildRenderList } from '@/utils/messageGroups';
 import type { GifResult } from '@/services/gifs';
 import { AppError } from '@/utils/result';
+import { RETENTION_MS } from '@/config';
 import { maskSpoilers } from '@/utils/spoiler';
 import { encodeMentions, resolveMentionsPlain } from '@/utils/mention';
 import { MentionNamesProvider } from '@/hooks/useMentionNames';
@@ -23,10 +24,11 @@ import { useArchive } from '@/hooks/useArchive';
 import { ArchiveManager } from '@/components/settings/ArchiveManager';
 import { useBulkReactions } from '@/hooks/useBulkReactions';
 import { BulkReactionsModal } from '@/components/settings/BulkReactionsModal';
-import { LastSeenModal } from '@/components/settings/LastSeenModal';
+import { SearchModal } from '@/components/chat/SearchModal';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useCall } from '@/hooks/useCall';
 import { useIdleLock } from '@/hooks/useIdleLock';
+import { useBackClose, useBackGuard } from '@/hooks/useBackGuard';
 import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { primeSound, playTing } from '@/utils/sound';
@@ -35,6 +37,16 @@ import { ScribbleSheet, type ScribbleStroke } from '@/components/chat/ScribbleSh
 import { DoodleLayer } from '@/components/chat/DoodleLayer';
 import { useDoodles } from '@/hooks/useDoodles';
 import type { DoodleStroke, Message, ParticipantId, ReplyRef } from '@/types';
+
+/**
+ * How many files one Media selection may send.
+ *
+ * Each photo is several encrypted documents and each video considerably more,
+ * so an accidental "select all" in the gallery could burn a meaningful slice of
+ * the daily free-tier write budget in one gesture. Ten is generous for sharing
+ * a handful of photos and cheap to stay inside.
+ */
+const MEDIA_BATCH_MAX = 10;
 
 interface ConversationProps {
   cryptoKey: CryptoKey;
@@ -78,10 +90,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
   const { doodles, save: saveDoodle } = useDoodles(cryptoKey);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [scribbleOpen, setScribbleOpen] = useState(false);
-  const { peer, noteTyping, clearTyping, lastSeenOverride, setLastSeenOverride } = usePresence(
-    slot,
-    uid,
-  );
+  const { peer, noteTyping, clearTyping } = usePresence(slot, uid);
   const peerSlot: ParticipantId = slot === 'a' ? 'b' : 'a';
   const peerName = usePeerName(peerSlot);
   const { theirNameForMe, publishMyNickname } = useNicknameSync(cryptoKey, slot);
@@ -135,7 +144,52 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
   const [scheduledOpen, setScheduledOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [bulkReactOpen, setBulkReactOpen] = useState(false);
-  const [lastSeenOpen, setLastSeenOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  /** Retention for the next message. Resets to the default on reload, so a
+   *  short setting cannot be left on by accident for weeks. */
+  const [retentionMs, setRetentionMs] = useState<number>(RETENTION_MS);
+
+  /**
+   * The Android back gesture. Installed here rather than in App so it exists
+   * only while unlocked — backing out of a conversation must never land on the
+   * password screen.
+   */
+  const showExitHint = useBackGuard();
+
+  // Overlays this page owns, innermost-last. Each one is closed by back before
+  // the gesture is allowed to mean "leave".
+  useBackClose(viewerUrl !== null, () => {
+    setViewerUrl(null);
+  });
+  useBackClose(cameraOpen, () => {
+    setCameraOpen(false);
+  });
+  useBackClose(scribbleOpen, () => {
+    setScribbleOpen(false);
+  });
+  useBackClose(searchOpen, () => {
+    setSearchOpen(false);
+  });
+  useBackClose(archiveOpen, () => {
+    setArchiveOpen(false);
+  });
+  useBackClose(bulkReactOpen, () => {
+    setBulkReactOpen(false);
+  });
+  useBackClose(replyTo !== null, () => {
+    setReplyTo(null);
+  });
+
+  /**
+   * During a call, back does nothing at all.
+   *
+   * Registered as a no-op rather than left unhandled: without it, back would
+   * count as an exit attempt, and two stray swipes mid-conversation would drop
+   * the call. Hanging up is a deliberate act with its own button.
+   */
+  useBackClose(call.phase !== 'idle', () => {
+    // Intentionally empty — the gesture is swallowed.
+  });
 
   /**
    * The timeline is the live window merged with the pinned messages fetched by
@@ -273,6 +327,8 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
           ? 'Photo'
           : message.payload.kind === 'video'
             ? 'Video'
+            : message.payload.kind === 'file'
+              ? message.payload.name
             : message.payload.kind === 'audio'
               ? 'Voice message'
               : 'Call';
@@ -322,7 +378,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
     try {
       const { upload } = await import('@/services/images');
       const payload = await upload(cryptoKey, file);
-      await send(payload);
+      await send(payload, retentionMs);
     } catch (error) {
       setUploadError(
         error instanceof AppError && error.message !== error.code
@@ -334,23 +390,91 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
     }
   };
 
-  const sendVideo = async (file: File) => {
+  /**
+   * Sends attachments, sharing the Media batch's rules: sequential, tolerant of
+   * one failure, capped. Split from it only because files take a different
+   * pipeline — nothing is re-encoded, the bytes go through untouched.
+   */
+  const sendFileBatch = async (files: File[]) => {
+    const batch = files.slice(0, MEDIA_BATCH_MAX);
     setUploading(true);
     setUploadError(null);
-    try {
-      const { upload } = await import('@/services/video');
-      const payload = await upload(cryptoKey, file);
-      await send(payload);
-    } catch (error) {
+
+    const failures: string[] = [];
+    for (const file of batch) {
+      try {
+        const { upload } = await import('@/services/files');
+        const payload = await upload(cryptoKey, file);
+        await send(payload, retentionMs);
+      } catch (error) {
+        failures.push(
+          error instanceof AppError && error.message !== error.code
+            ? `${file.name}: ${error.message}`
+            : file.name,
+        );
+      }
+    }
+
+    setUploading(false);
+
+    if (files.length > MEDIA_BATCH_MAX) {
       setUploadError(
-        error instanceof AppError && error.message !== error.code
-          ? error.message
-          : 'Could not send that video.',
+        `Only the first ${String(MEDIA_BATCH_MAX)} were sent — select fewer at a time.`,
       );
-    } finally {
-      setUploading(false);
+    } else if (failures.length === 1) {
+      setUploadError(`Could not send ${failures[0] ?? 'that file'}.`);
+    } else if (failures.length > 1) {
+      setUploadError(`Could not send ${String(failures.length)} of ${String(batch.length)} files.`);
     }
   };
+
+  /**
+   * Sends a batch from the Media picker, one file at a time.
+   *
+   * Sequential on purpose. Each item is compressed, encrypted and written as
+   * several documents, so firing them in parallel would spike the write rate
+   * and, on a phone, try to hold every decoded image in memory at once.
+   *
+   * A failure does NOT abort the batch — the remaining files still go, and the
+   * error names how many were skipped. Losing nine good photos because the
+   * tenth was an unsupported format would be its own bug.
+   */
+  const sendMediaBatch = async (files: File[]) => {
+    const batch = files.slice(0, MEDIA_BATCH_MAX);
+    setUploading(true);
+    setUploadError(null);
+
+    const failures: string[] = [];
+    for (const file of batch) {
+      try {
+        const isVideo = file.type.startsWith('video/');
+        const { upload } = await (isVideo
+          ? import('@/services/video')
+          : import('@/services/images'));
+        const payload = await upload(cryptoKey, file);
+        await send(payload, retentionMs);
+      } catch (error) {
+        failures.push(
+          error instanceof AppError && error.message !== error.code
+            ? `${file.name}: ${error.message}`
+            : file.name,
+        );
+      }
+    }
+
+    setUploading(false);
+
+    if (files.length > MEDIA_BATCH_MAX) {
+      setUploadError(
+        `Only the first ${String(MEDIA_BATCH_MAX)} were sent — select fewer at a time.`,
+      );
+    } else if (failures.length === 1) {
+      setUploadError(`Could not send ${failures[0] ?? 'that file'}.`);
+    } else if (failures.length > 1) {
+      setUploadError(`Could not send ${String(failures.length)} of ${String(batch.length)} files.`);
+    }
+  };
+
 
   /**
    * Downloads the GIF here, then hands it to the ordinary image pipeline.
@@ -367,7 +491,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
       ]);
       const file = await gifs.fetchBytes(result);
       const payload = await images.upload(cryptoKey, file);
-      await send(payload);
+      await send(payload, retentionMs);
     } catch (error) {
       setUploadError(
         error instanceof AppError && error.message !== error.code
@@ -385,7 +509,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
     try {
       const { upload } = await import('@/services/audio');
       const payload = await upload(cryptoKey, blob, durationMs, peaks);
-      await send(payload);
+      await send(payload, retentionMs);
     } catch (error) {
       setUploadError(
         error instanceof AppError && error.message !== error.code
@@ -446,21 +570,6 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
       <Header
         peer={peer}
         connection={connection}
-        onLock={onLock}
-        onPairNewDevice={async () => {
-          const { openRepairWindow } = await import('@/services/session');
-          await openRepairWindow();
-        }}
-        canLinkDevice={slot === 'a'}
-        onLinkDevice={async () => {
-          const { openLinkWindow } = await import('@/services/session');
-          await openLinkWindow();
-        }}
-        onUnpair={async () => {
-          const { releaseSlot } = await import('@/services/session');
-          await releaseSlot();
-          onLock();
-        }}
         onVoiceCall={() => void call.start('audio')}
         onVideoCall={() => void call.start('video')}
         peerName={peerName.name}
@@ -473,10 +582,8 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         onOpenBulkReactions={() => {
           setBulkReactOpen(true);
         }}
-        canSetLastSeen={slot === 'a'}
-        lastSeenOverridden={lastSeenOverride !== null}
-        onOpenLastSeen={() => {
-          setLastSeenOpen(true);
+        onOpenSearch={() => {
+          setSearchOpen(true);
         }}
         pins={pins}
         onJumpToPin={jumpToMessage}
@@ -577,6 +684,20 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         </p>
       )}
 
+      {/* Shown after the first back with nothing left to close. Floats above the
+          composer so it cannot be mistaken for a message. */}
+      {showExitHint && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
+          <p
+            role="status"
+            className="animate-scale-in rounded-full bg-black/65 px-4 py-2 text-xs text-white/90
+                       ring-1 ring-inset ring-white/15 backdrop-blur-xl"
+          >
+            Press back again to exit
+          </p>
+        </div>
+      )}
+
       {scheduledMessages.length > 0 && (
         <div className="mx-auto w-full max-w-[850px] px-3">
           <button
@@ -646,15 +767,20 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
           // Convert the display mentions the composer inserted into stable slot
           // tokens before the text is encrypted and sent.
           const encoded = encodeMentions(text, { mySlot: slot, peerSlot, peerName: peerName.name });
-          void send({ kind: 'text', text: encoded, ...(replyTo ? { replyTo } : {}) });
+          void send({ kind: 'text', text: encoded, ...(replyTo ? { replyTo } : {}) }, retentionMs);
           setReplyTo(null);
         }}
         onSendImage={(file) => {
           void sendImage(file);
         }}
-        onSendVideo={(file) => {
-          void sendVideo(file);
+        onSendMedia={(files) => {
+          void sendMediaBatch(files);
         }}
+        onSendFiles={(files) => {
+          void sendFileBatch(files);
+        }}
+        retentionMs={retentionMs}
+        onRetentionChange={setRetentionMs}
         onSendVoice={(blob, durationMs, peaks) => {
           void sendVoice(blob, durationMs, peaks);
         }}
@@ -712,12 +838,14 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         />
       )}
 
-      {lastSeenOpen && slot === 'a' && (
-        <LastSeenModal
-          value={lastSeenOverride}
-          onApply={setLastSeenOverride}
+      {searchOpen && (
+        <SearchModal
+          messages={deliveredMessages}
+          mySlot={slot}
+          peerName={peerName.name}
+          onJump={jumpToMessage}
           onClose={() => {
-            setLastSeenOpen(false);
+            setSearchOpen(false);
           }}
         />
       )}
@@ -768,6 +896,9 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         onToggleCamera={call.toggleCamera}
         onSwitchCamera={call.switchCamera}
         canSwitchCamera={call.canSwitchCamera}
+        sharingScreen={call.sharingScreen}
+        canShareScreen={call.canShareScreen}
+        onToggleScreenShare={call.toggleScreenShare}
         onDismissError={call.dismissError}
       />
     </div>

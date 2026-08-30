@@ -5,10 +5,36 @@
  * so an auditor can read the entire security posture in one screen.
  */
 
-export const APP_NAME = 'Atlas';
+/**
+ * The name shown anywhere the operating system or the browser can see it: the
+ * tab title, desktop notifications, the call screen.
+ *
+ * It matches the public site rather than the app on purpose. A notification
+ * that reads "Atlas" on a lock screen, or a tab title that changes the moment
+ * you unlock, undoes the concealment in the one place you cannot control who
+ * is looking.
+ */
+export const APP_NAME = 'MechCodes';
 
-/** Message and image lifetime. */
+/** Message and image lifetime — also the maximum the Security Rules permit. */
 export const RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Per-message retention choices.
+ *
+ * Only ever SHORTER than the 24h default. The rules cap it there, so a message
+ * can be made to vanish sooner but never to linger — the retention guarantee
+ * still holds no matter what a client sends.
+ *
+ * Media documents keep their own 24h expiry: they are addressed by id from
+ * inside the encrypted payload, so once the message is gone there is nothing
+ * left pointing at them and the ordinary sweep collects them.
+ */
+export const RETENTION_OPTIONS = [
+  { label: '1 hour', ms: 60 * 60 * 1000 },
+  { label: '6 hours', ms: 6 * 60 * 60 * 1000 },
+  { label: '24 hours', ms: RETENTION_MS },
+] as const;
 
 export const CRYPTO = {
   /** AES-GCM standard nonce length. Do not change. */
@@ -163,6 +189,28 @@ export const VIDEO = {
 } as const;
 
 /**
+ * File attachments.
+ *
+ * Anything that is not a photo, video or voice note — a PDF, a document, a zip.
+ * Stored byte-for-byte and chunked exactly like video, because there is nothing
+ * to re-encode: a file is opaque and must come out the other side identical.
+ *
+ * The name and MIME type travel INSIDE the encrypted payload, never as document
+ * fields. "contract-final-v3.pdf" is content; a filename list in the clear
+ * would describe the conversation as clearly as the messages do.
+ */
+export const FILES = {
+  CHUNK_BYTES: 600 * 1024,
+  /** 34 chunks ≈ 20 MB. Bounded by daily write quota, not storage. */
+  MAX_CHUNKS: 34,
+  get MAX_BYTES() {
+    return this.CHUNK_BYTES * this.MAX_CHUNKS;
+  },
+  /** Longest filename kept; anything past this is truncated for display. */
+  MAX_NAME: 120,
+} as const;
+
+/**
  * Custom emoji.
  *
  * Uploaded images, referenced in messages by `:shortcode:` and usable as
@@ -270,8 +318,16 @@ export const DOODLE = {
 export const GIF = {
   API_KEY: import.meta.env.VITE_GIPHY_API_KEY ?? '',
   ENDPOINT: 'https://api.giphy.com/v1/gifs',
-  LIMIT: 24,
-  MAX_BYTES: 700 * 1024,
+  /** Per page. Giphy caps this at 50; 30 fills the grid without a long wait. */
+  LIMIT: 30,
+  /**
+   * Size ceiling for a single GIF.
+   *
+   * GIFs are chunked across documents, so the old 700 KB limit was far stricter
+   * than storage required — it was mostly just discarding search results. 2 MB
+   * still lands well inside the chunk budget while keeping far more of them.
+   */
+  MAX_BYTES: 2 * 1024 * 1024,
   /** Giphy's downsized rendition — usually 100–500 KB, versus multi-MB originals. */
   RENDITION: 'downsized',
   PREVIEW_RENDITION: 'fixed_width_small',
@@ -416,13 +472,60 @@ export const SECURITY = {
   IDLE_LOCK_MS: 15 * 60 * 1000,
 } as const;
 
+/**
+ * Unlock backoff.
+ *
+ * Worth being exact about what this defends, because it is easy to credit it
+ * with more than it does.
+ *
+ * It defends against a person typing guesses into this app's own UI — someone
+ * who picked up an unlocked laptop and is trying birthdays. Against that it is
+ * effective, and the numbers below are deliberately unfriendly.
+ *
+ * It defends against nothing else. The counter lives in IndexedDB on the device
+ * doing the guessing (storage/throttle.ts) and is checked by our own code in
+ * services/session.ts. Anyone attacking the database directly never executes
+ * that check, and clearing site data resets it. The defence that actually holds
+ * against an offline attack is the 2,000,000 PBKDF2 iterations plus a passphrase
+ * long enough to make them matter.
+ */
 export const PASSPHRASE = {
   MIN_LENGTH: 12,
   /** Failed unlock attempts before backoff begins. */
-  THROTTLE_AFTER_ATTEMPTS: 5,
-  /** Backoff doubles from here, capped below. */
-  THROTTLE_BASE_MS: 2_000,
-  THROTTLE_MAX_MS: 60_000,
+  THROTTLE_AFTER_ATTEMPTS: 3,
+  /** Backoff doubles from here: 10s, 20s, 40s, 80s … up to the cap. */
+  THROTTLE_BASE_MS: 10_000,
+  /**
+   * Six hours.
+   *
+   * Chosen for its effect on a person, not on a program. By the eleventh wrong
+   * guess the wait is measured in hours, which ends any attempt to sit and try
+   * passwords by hand — and that is the entire threat this setting addresses.
+   *
+   * It does nothing whatsoever to a real brute-force attempt. See the note above
+   * PASSPHRASE: the counter is client-side, so an attacker working against the
+   * database never runs the check, and clearing site data resets it. Raising
+   * this number feels like hardening and is not; the 2,000,000 KDF iterations
+   * are what make guessing expensive, and they apply to everyone equally.
+   *
+   * The cost lands on you: mistype three times and you are waiting, on your own
+   * device, with nobody able to clear it but you. Six hours is the point where
+   * that is still recoverable — clear site data and re-enter — while being long
+   * enough that nobody idly guesses their way in.
+   */
+  THROTTLE_MAX_MS: 6 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * Desktop notifications.
+ *
+ * The only part of this app that renders outside the page, where the operating
+ * system decides who sees it — a locked phone, a mirrored display, a shoulder.
+ * Everything shown there is chosen to be consistent with the public site.
+ */
+export const NOTIFICATIONS = {
+  /** Put the message text in the notification body. Off: it is drawn by the OS. */
+  SHOW_PREVIEW: false,
 } as const;
 
 export const PRESENCE = {

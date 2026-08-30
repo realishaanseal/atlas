@@ -40,15 +40,40 @@ interface GiphyItem {
   images: Record<string, GiphyRendition | undefined>;
 }
 
+/**
+ * The largest rendition that still fits the budget.
+ *
+ * Giphy returns the same GIF at a dozen sizes. Asking for one preferred
+ * rendition and DISCARDING the result when it is too big — which is what this
+ * used to do — threw away a large share of every page, which is why the grid
+ * looked so sparse. Stepping down through smaller renditions keeps nearly
+ * everything; a slightly lower-resolution GIF is obviously better than no GIF.
+ */
+const RENDITION_LADDER = [
+  GIF.RENDITION,
+  'downsized_medium',
+  'fixed_height',
+  'downsized_small',
+  'fixed_height_small',
+] as const;
+
+function pickRendition(images: GiphyItem['images']): GiphyRendition | undefined {
+  for (const name of RENDITION_LADDER) {
+    const candidate = images[name];
+    if (!candidate?.url) continue;
+    const size = Number(candidate.size ?? '0');
+    // A missing size is treated as acceptable: fetchBytes re-checks the real
+    // bytes before sending, so an optimistic guess here costs nothing.
+    if (size === 0 || size <= GIF.MAX_BYTES) return candidate;
+  }
+  return undefined;
+}
+
 function toResults(payload: { data?: GiphyItem[] }): GifResult[] {
   return (payload.data ?? []).flatMap((item): GifResult[] => {
-    const media = item.images[GIF.RENDITION] ?? item.images['fixed_height'];
+    const media = pickRendition(item.images);
     const preview = item.images[GIF.PREVIEW_RENDITION] ?? media;
     if (!media?.url || !preview?.url) return [];
-
-    // Anything over budget is dropped here rather than failing at send time.
-    const size = Number(media.size ?? '0');
-    if (size > GIF.MAX_BYTES) return [];
 
     return [
       {
@@ -63,7 +88,13 @@ function toResults(payload: { data?: GiphyItem[] }): GifResult[] {
   });
 }
 
-async function request(path: string, params: Record<string, string>): Promise<GifResult[]> {
+export interface GifPage {
+  readonly results: GifResult[];
+  /** False once Giphy stops returning anything, so scrolling can stop asking. */
+  readonly hasMore: boolean;
+}
+
+async function request(path: string, params: Record<string, string>): Promise<GifPage> {
   if (GIF.API_KEY.length === 0) throw new AppError('unknown', 'GIF search is not configured');
 
   const url = new URL(`${GIF.ENDPOINT}/${path}`);
@@ -77,15 +108,23 @@ async function request(path: string, params: Record<string, string>): Promise<Gi
   const response = await fetch(url, { referrerPolicy: 'no-referrer', credentials: 'omit' });
   if (!response.ok) throw new AppError('network', 'GIF search failed');
 
-  return toResults((await response.json()) as { data?: GiphyItem[] });
+  const payload = (await response.json()) as { data?: GiphyItem[] };
+  const raw = payload.data?.length ?? 0;
+
+  return {
+    results: toResults(payload),
+    // Judged on what Giphy RETURNED, not on what survived filtering — a page
+    // where most items were unusable is not the end of the results.
+    hasMore: raw >= GIF.LIMIT,
+  };
 }
 
-export function search(query: string): Promise<GifResult[]> {
-  return request('search', { q: query });
+export function search(query: string, offset = 0): Promise<GifPage> {
+  return request('search', { q: query, offset: String(offset) });
 }
 
-export function featured(): Promise<GifResult[]> {
-  return request('trending', {});
+export function featured(offset = 0): Promise<GifPage> {
+  return request('trending', { offset: String(offset) });
 }
 
 /**

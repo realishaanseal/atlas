@@ -133,6 +133,8 @@ export function usePins(key: CryptoKey) {
                   : 'Photo'
                 : message.payload.kind === 'video'
                   ? 'Video'
+                  : message.payload.kind === 'file'
+                    ? message.payload.name
                   : message.payload.kind === 'audio'
                     ? 'Voice message'
                     : 'Call';

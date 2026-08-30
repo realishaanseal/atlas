@@ -1,0 +1,38 @@
+import { ThemeProvider } from '@/hooks/useTheme';
+import { CustomEmojiProvider } from '@/hooks/useCustomEmoji';
+import Conversation from './Conversation';
+import type { ParticipantId } from '@/types';
+
+interface ChatRootProps {
+  cryptoKey: CryptoKey;
+  slot: ParticipantId;
+  uid: string;
+  onLock: () => void;
+}
+
+/**
+ * Everything behind the code, in one lazily loaded module.
+ *
+ * This exists purely so that the conversation, the theme engine, the emoji
+ * pack and — through them — `@/config` and the crypto layer all land in a
+ * chunk that is never fetched until a valid code has been entered. A visitor
+ * who never unlocks downloads none of it, so there is nothing in the network
+ * tab or the parsed bundle to suggest the site is anything but a notes site.
+ *
+ * The theme provider in particular used to sit in `main.tsx`, which put the
+ * palette engine and an IndexedDB open on the critical path of every page
+ * load. It is only ever consumed inside the conversation, so it belongs here.
+ *
+ * Both providers are mounted inside the unlocked branch on purpose: the emoji
+ * provider decrypts the pack and holds object URLs for it, and neither it nor
+ * its blobs should outlive the session.
+ */
+export default function ChatRoot({ cryptoKey, slot, uid, onLock }: ChatRootProps) {
+  return (
+    <ThemeProvider>
+      <CustomEmojiProvider cryptoKey={cryptoKey}>
+        <Conversation cryptoKey={cryptoKey} slot={slot} uid={uid} onLock={onLock} />
+      </CustomEmojiProvider>
+    </ThemeProvider>
+  );
+}

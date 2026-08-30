@@ -11,6 +11,8 @@ import {
   Volume1,
   Volume2,
   SwitchCamera,
+  ScreenShare,
+  ScreenShareOff,
 } from 'lucide-react';
 import { APP_NAME } from '@/config';
 import type { CallKind } from '@/types';
@@ -35,6 +37,9 @@ interface CallScreenProps {
   onToggleCamera: () => void;
   onSwitchCamera: () => void;
   canSwitchCamera: boolean;
+  sharingScreen: boolean;
+  canShareScreen: boolean;
+  onToggleScreenShare: () => void;
   onDismissError: () => void;
 }
 
@@ -66,6 +71,18 @@ const statusLabel: Record<CallPhase, string> = {
   failed: 'Call failed',
 };
 
+/**
+ * A call control.
+ *
+ * Every variant is a gradient with a hairline top highlight and a coloured
+ * shadow, rather than a flat fill. That combination is most of what separates
+ * "a coloured circle" from "a physical button": the gradient implies a lit
+ * surface, the highlight implies an edge catching that light, and the shadow
+ * puts it above the page instead of painted onto it.
+ *
+ * The neutral variant is glass rather than a solid surface, so the video behind
+ * shows through it — the controls sit over the call rather than boxing it in.
+ */
 function RoundButton({
   onClick,
   label,
@@ -79,24 +96,55 @@ function RoundButton({
   variant?: 'neutral' | 'active' | 'danger' | 'accept';
   className?: string;
 }) {
+  const big = variant === 'danger' || variant === 'accept';
+
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
       className={cn(
-        'press flex items-center justify-center rounded-full shadow-lift transition-colors duration-150',
-        variant === 'danger' || variant === 'accept' ? 'size-16' : 'size-14',
-        variant === 'neutral' && 'bg-surface-raised text-text hover:bg-surface',
-        // Inverted rather than tinted: a "muted" control should read as ON,
-        // and inversion survives being glanced at on a dark screen.
-        variant === 'active' && 'bg-white text-bg-deep',
-        variant === 'danger' && 'bg-danger text-white hover:brightness-110',
-        variant === 'accept' && 'bg-success text-white hover:brightness-110',
+        'press group relative flex items-center justify-center rounded-full',
+        'transition-[transform,box-shadow,background-color] duration-200 ease-spring',
+        'hover:-translate-y-0.5 active:translate-y-0',
+        // Sized down on phones: at full size the six controls of a video call
+        // overflowed a 412px screen and wrapped onto a second row.
+        big ? 'size-14 sm:size-16' : 'size-11 sm:size-14',
+
+        variant === 'neutral' &&
+          cn(
+            'bg-white/[0.08] text-text ring-1 ring-inset ring-white/15 backdrop-blur-xl',
+            'shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_4px_16px_-4px_rgb(4_6_16/0.7)]',
+            'hover:bg-white/[0.14] hover:ring-white/25',
+          ),
+
+        // "On" states (muted, camera off) invert rather than tint: it survives a
+        // glance on a dark screen far better than a colour change, and colour
+        // alone should never be the signal.
+        variant === 'active' &&
+          cn(
+            'bg-gradient-to-b from-white to-zinc-200 text-bg-deep ring-1 ring-white/70',
+            'shadow-[inset_0_1px_0_rgb(255_255_255/0.55),0_6px_20px_-4px_rgb(255_255_255/0.35)]',
+          ),
+
+        variant === 'danger' &&
+          cn(
+            'bg-gradient-to-b from-[#ff6b6b] to-[#e03131] text-white ring-1 ring-white/25',
+            'shadow-[inset_0_1px_0_rgb(255_255_255/0.28),0_8px_24px_-6px_rgb(224_49_49/0.7)]',
+            'hover:brightness-110',
+          ),
+
+        variant === 'accept' &&
+          cn(
+            'bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-white ring-1 ring-white/25',
+            'shadow-[inset_0_1px_0_rgb(255_255_255/0.28),0_8px_24px_-6px_rgb(22_163_74/0.7)]',
+            'hover:brightness-110',
+          ),
+
         className,
       )}
     >
-      {children}
+      <span className="relative">{children}</span>
     </button>
   );
 }
@@ -139,9 +187,10 @@ function VolumeControl({
     <div className="relative" ref={rootRef}>
       {open && (
         <div
-          className="glass animate-rise absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2
-                     flex-col items-center gap-2 rounded-full border border-border px-2 py-3
-                     shadow-lift"
+          className="animate-scale-in absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2
+                     flex-col items-center gap-2 rounded-full bg-black/50 px-2 py-3
+                     ring-1 ring-inset ring-white/15 backdrop-blur-2xl
+                     shadow-[0_12px_36px_-8px_rgb(4_6_16/0.9)]"
         >
           <span className="text-[0.625rem] font-semibold tabular-nums text-secondary">
             {percent}%
@@ -184,8 +233,19 @@ function VolumeControl({
         aria-label={`Call volume, currently ${String(percent)} percent`}
         aria-expanded={open}
         className={cn(
-          'press flex size-14 flex-col items-center justify-center gap-0.5 rounded-full shadow-lift',
-          boosted || open ? 'bg-text text-bg' : 'bg-surface-raised text-text hover:bg-surface',
+          'press relative flex size-11 flex-col items-center justify-center gap-0.5 rounded-full sm:size-14',
+          'transition-[transform,box-shadow,background-color] duration-200 ease-spring',
+          'hover:-translate-y-0.5 active:translate-y-0',
+          boosted || open
+            ? cn(
+                'bg-gradient-to-b from-white to-zinc-200 text-bg-deep ring-1 ring-white/70',
+                'shadow-[inset_0_1px_0_rgb(255_255_255/0.55),0_6px_20px_-4px_rgb(255_255_255/0.35)]',
+              )
+            : cn(
+                'bg-white/[0.08] text-text ring-1 ring-inset ring-white/15 backdrop-blur-xl',
+                'shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_4px_16px_-4px_rgb(4_6_16/0.7)]',
+                'hover:bg-white/[0.14]',
+              ),
         )}
       >
         {boosted ? <Volume2 size={18} aria-hidden /> : <Volume1 size={18} aria-hidden />}
@@ -216,6 +276,9 @@ export function CallScreen({
   onToggleCamera,
   onSwitchCamera,
   canSwitchCamera,
+  sharingScreen,
+  canShareScreen,
+  onToggleScreenShare,
   onDismissError,
 }: CallScreenProps) {
   const remote = useStream(remoteStream);
@@ -238,8 +301,28 @@ export function CallScreen({
       role="dialog"
       aria-modal="true"
       aria-label={`${isVideo ? 'Video' : 'Voice'} call`}
-      className="animate-rise fixed inset-0 z-50 flex flex-col bg-bg-deep/97 backdrop-blur-md"
+      className="animate-scale-in fixed inset-0 z-50 flex flex-col bg-bg-deep/97 backdrop-blur-md"
     >
+      {/* Ambient field, matching the lock screen. Without it a voice call is a
+          flat black rectangle with an icon in the middle. Hidden once remote
+          video fills the frame, where it would only muddy the picture. */}
+      {!showRemoteVideo && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/3 size-[460px] -translate-x-1/2
+                       -translate-y-1/2 rounded-full bg-accent-solid/20 blur-[110px]"
+            style={{ animation: 'pulse-glow 7s var(--ease-soft) infinite' }}
+          />
+          <div
+            aria-hidden
+            className="animate-float pointer-events-none absolute bottom-24 left-1/2 size-[280px]
+                       -translate-x-[70%] rounded-full blur-[90px]"
+            style={{ backgroundColor: 'color-mix(in oklab, var(--glow-b) 20%, transparent)' }}
+          />
+        </>
+      )}
+
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {showRemoteVideo ? (
           <>
@@ -249,7 +332,11 @@ export function CallScreen({
                 the video element underneath. */}
             {peerCameraOff && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg-deep">
-                <div className="flex size-28 items-center justify-center rounded-full border border-border bg-surface">
+                <div
+                  className="relative flex size-28 items-center justify-center rounded-full
+                             bg-gradient-to-b from-surface-raised to-surface ring-1 ring-inset
+                             ring-white/10 shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_16px_48px_-12px_rgb(4_6_16/0.9)]"
+                >
                   <User size={44} className="text-secondary" aria-hidden />
                 </div>
                 <p className="flex items-center gap-1.5 text-sm text-secondary">
@@ -266,20 +353,44 @@ export function CallScreen({
             {remoteStream && (
               <video ref={remote.ref} autoPlay playsInline className="hidden" />
             )}
-            <div className="flex flex-col items-center gap-5 px-6 text-center">
-              <div
-                className={cn(
-                  'flex size-28 items-center justify-center rounded-full border border-border',
-                  'bg-surface shadow-glow',
-                  phase === 'calling' || phase === 'incoming' ? 'animate-pulse' : '',
+            <div className="relative flex flex-col items-center gap-6 px-6 text-center">
+              <div className="relative">
+                {/* Expanding rings while it rings — the visual equivalent of the
+                    ringing tone, and the one moment the screen should feel
+                    alive rather than waiting. */}
+                {(phase === 'calling' || phase === 'incoming') && (
+                  <>
+                    <span
+                      aria-hidden
+                      className="animate-pulse-ring absolute inset-0 rounded-full bg-accent-solid/25"
+                    />
+                    <span
+                      aria-hidden
+                      className="animate-pulse-ring absolute inset-0 rounded-full bg-accent-solid/20"
+                      style={{ animationDelay: '0.7s' }}
+                    />
+                  </>
                 )}
-              >
-                <User size={44} className="text-secondary" aria-hidden />
+
+                <div
+                  className={cn(
+                    'relative flex size-28 items-center justify-center rounded-full sm:size-32',
+                    'bg-gradient-to-b from-surface-raised to-surface',
+                    'ring-1 ring-inset ring-white/10',
+                    'shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_16px_48px_-12px_rgb(4_6_16/0.9),0_0_0_1px_rgb(77_148_255/0.12)]',
+                  )}
+                >
+                  <User size={48} className="text-secondary" aria-hidden />
+                </div>
               </div>
+
               <div>
-                <p className="text-xl font-semibold tracking-[-0.02em]">{APP_NAME}</p>
+                <p className="text-2xl font-semibold tracking-[-0.03em]">{APP_NAME}</p>
                 <p
-                  className={cn('mt-1 text-sm', error !== null ? 'text-danger' : 'text-secondary')}
+                  className={cn(
+                    'mt-1.5 text-sm tabular-nums',
+                    error !== null ? 'text-danger' : 'text-secondary',
+                  )}
                   aria-live="polite"
                 >
                   {error ?? statusLabel[phase]}
@@ -296,8 +407,11 @@ export function CallScreen({
             playsInline
             muted
             className={cn(
-              'absolute bottom-4 right-4 w-28 -scale-x-100 rounded-md border border-border',
-              'object-cover shadow-lift transition-opacity duration-300 sm:w-40',
+              'absolute bottom-24 right-3 w-24 -scale-x-100 rounded-xl object-cover',
+              'sm:bottom-28 sm:right-4 sm:w-40',
+              'ring-1 ring-white/15',
+              'shadow-[0_12px_32px_-8px_rgb(4_6_16/0.9)]',
+              'transition-[opacity,transform] duration-300 ease-spring hover:scale-[1.03]',
               cameraOff && 'opacity-0',
             )}
           />
@@ -306,7 +420,8 @@ export function CallScreen({
         {showRemoteVideo && error !== null && (
           <p
             role="alert"
-            className="glass absolute top-4 rounded-md border border-border px-4 py-2 text-sm"
+            className="animate-scale-in absolute top-4 rounded-full bg-black/55 px-4 py-2 text-sm
+                       text-white/90 ring-1 ring-inset ring-white/15 backdrop-blur-xl"
           >
             {error}
           </p>
@@ -317,8 +432,9 @@ export function CallScreen({
             placeholder above, so this only carries the mic. */}
         {inCall && peerMuted && (
           <div
-            className="glass absolute left-4 top-4 flex items-center gap-1.5 rounded-full border
-                       border-border px-3 py-1.5 text-xs text-secondary"
+            className="animate-scale-in absolute left-4 top-4 flex items-center gap-1.5 rounded-full
+                       bg-black/50 px-3 py-1.5 text-xs text-white/90 ring-1 ring-inset ring-white/15
+                       backdrop-blur-xl"
           >
             <MicOff size={14} className="text-danger" aria-hidden />
             Muted
@@ -326,8 +442,17 @@ export function CallScreen({
         )}
       </div>
 
-      <div className="glass border-t border-border px-6 pb-safe pt-5">
-        <div className="mx-auto flex max-w-sm items-center justify-center gap-4 pb-4">
+      {/* A floating pill rather than a full-width bar with a hard rule above it.
+          The controls read as an object sitting over the call, and on a video
+          call the picture runs behind them instead of being cropped by a slab. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-safe">
+        <div
+          className="pointer-events-auto mx-auto mb-4 flex w-fit max-w-full flex-wrap items-center
+                     justify-center gap-2 rounded-[2rem] bg-black/40 p-2 ring-1 ring-inset
+                     sm:gap-3 sm:p-3
+                     ring-white/10 backdrop-blur-2xl
+                     shadow-[0_20px_60px_-16px_rgb(4_6_16/0.95)]"
+        >
           {phase === 'incoming' && (
             <>
               <RoundButton onClick={onDecline} label="Decline call" variant="danger">
@@ -343,7 +468,9 @@ export function CallScreen({
             <button
               type="button"
               onClick={onDismissError}
-              className="press h-12 rounded-md border border-border bg-surface px-6 text-sm font-medium"
+              className="press h-12 rounded-full bg-white/[0.08] px-7 text-sm font-medium text-text
+                         ring-1 ring-inset ring-white/15 backdrop-blur-xl
+                         transition-colors hover:bg-white/[0.14]"
             >
               Close
             </button>
@@ -375,9 +502,28 @@ export function CallScreen({
 
               {/* Flip front/back, right beside the camera toggle it belongs to.
                   Only shown when there is a second camera to flip to. */}
-              {isVideo && canSwitchCamera && (
+              {isVideo && canSwitchCamera && !sharingScreen && (
                 <RoundButton onClick={onSwitchCamera} label="Switch camera" variant="neutral">
                   <SwitchCamera size={22} aria-hidden />
+                </RoundButton>
+              )}
+
+              {/* Screen share. Video calls only — on an audio call there is no
+                  video track to swap, so it would need a renegotiation this
+                  deliberately avoids. Highlighted while active, because
+                  accidentally sharing your screen is the mistake worth guarding
+                  against. */}
+              {isVideo && canShareScreen && (
+                <RoundButton
+                  onClick={onToggleScreenShare}
+                  label={sharingScreen ? 'Stop sharing screen' : 'Share screen'}
+                  variant={sharingScreen ? 'active' : 'neutral'}
+                >
+                  {sharingScreen ? (
+                    <ScreenShareOff size={22} aria-hidden />
+                  ) : (
+                    <ScreenShare size={22} aria-hidden />
+                  )}
                 </RoundButton>
               )}
 

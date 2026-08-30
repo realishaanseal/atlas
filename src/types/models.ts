@@ -11,7 +11,7 @@ import type { B64, EncryptedEnvelope } from './crypto';
 
 export type ParticipantId = 'a' | 'b';
 
-export type MessageKind = 'text' | 'image' | 'audio' | 'call' | 'video';
+export type MessageKind = 'text' | 'image' | 'audio' | 'call' | 'video' | 'file';
 
 export type CallOutcome = 'completed' | 'missed' | 'declined';
 
@@ -85,6 +85,21 @@ export type MessagePayload = (
       chunks?: number;
     }
   | {
+      kind: 'file';
+      /** Document id in rooms/{roomId}/files holding the encrypted bytes. */
+      fileId: string;
+      wrappedKey: EncryptedEnvelope;
+      /**
+       * Original filename and type, carried HERE inside the encrypted payload
+       * rather than as fields on the file document. A filename describes the
+       * conversation almost as well as its contents do.
+       */
+      name: string;
+      mime: string;
+      byteSize: number;
+      chunks?: number;
+    }
+  | {
       kind: 'audio';
       /** Document id in rooms/{roomId}/audio holding the encrypted bytes. */
       audioId: string;
@@ -125,6 +140,17 @@ export interface MessageDoc {
   readonly expiresAt: number;
   /** The entire payload, including its kind, encrypted as one blob. */
   readonly body: EncryptedEnvelope;
+  /**
+   * Delivery receipt: when the RECIPIENT'S device actually received this
+   * message, which is not the same as when the server accepted it.
+   *
+   * Written by the recipient the moment their subscription hands them the
+   * document, regardless of whether the tab is visible — that is precisely what
+   * separates it from `readAt`, which waits until they are actually looking. A
+   * message sent to a phone that is switched off has no `deliveredAt` until it
+   * comes back online, and the single tick says so honestly.
+   */
+  readonly deliveredAt?: number;
   /** Read receipt. Set by the recipient only; rules enforce that. */
   readonly readAt?: number;
   /** When the sender last edited the text. Absent means never edited. */
@@ -157,6 +183,8 @@ export interface Message {
   readonly expiresAt: number;
   readonly payload: MessagePayload;
   readonly state: DeliveryState;
+  /** When the peer's device received it. Drives the second tick. */
+  readonly deliveredAt?: number;
   readonly readAt?: number;
   /** When the message was last edited; drives the "edited" label. */
   readonly editedAt?: number;
@@ -262,7 +290,7 @@ export interface NicknameDoc {
  * screen, so the payload is not otherwise available at that moment.
  */
 export interface PinMediaRef {
-  readonly kind: 'image' | 'audio' | 'video';
+  readonly kind: 'image' | 'audio' | 'video' | 'file';
   readonly id: string;
   /** Image chunk count, when the image is split across documents. */
   readonly chunks?: number;
@@ -333,19 +361,6 @@ export interface PresenceDoc {
   readonly lastSeen: number;
   /** Expires on its own so a crashed tab cannot appear "typing" forever. */
   readonly typingUntil: number;
-  /**
-   * A manually chosen "last seen" time, displayed to the peer INSTEAD of the
-   * real `lastSeen`.
-   *
-   * `lastSeen` itself cannot be faked: the Security Rules pin it to within a
-   * minute of the server clock, deliberately, so the staleness logic that drives
-   * the online indicator stays trustworthy. This is a separate, presentation-only
-   * field — the peer's client shows it when present, and everything else
-   * (heartbeats, staleness, delivery) keeps using the real value.
-   *
-   * Absent means "no override", which is the normal state.
-   */
-  readonly lastSeenOverride?: number;
 }
 
 /**
@@ -362,12 +377,19 @@ export interface RoomDoc {
   /** Anonymous-auth uid, or null if the slot is free. */
   readonly deviceA: string | null;
   /**
-   * A SECOND device on the A side, so one person can be signed in on two
-   * devices (e.g. a laptop and a phone) at once. The B side stays single.
-   * Optional — rooms created before this existed simply do not have the field,
-   * which the rules tolerate.
+   * Additional devices on the A side, so one person can be signed in on a
+   * laptop, a second laptop and a phone at once. The B side stays single.
+   *
+   * Both are optional: rooms created before each field existed simply do not
+   * have it, and the rules read them through `get(field, null)` so a missing
+   * field is treated as an empty slot rather than an error.
+   *
+   * The cap is structural. There are exactly four device fields and no fifth to
+   * write, which is what enforces "at most four devices" without the Security
+   * Rules having to count a collection.
    */
   readonly deviceA2?: string | null;
+  readonly deviceA3?: string | null;
   readonly deviceB: string | null;
   /**
    * Epoch ms until which a new device may take over an occupied slot. Only an

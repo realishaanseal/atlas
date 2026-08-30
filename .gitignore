@@ -24,6 +24,8 @@ ui-debug.log
 *.sln
 *.sw?
 
-# Firebase project alias — each person deploying this uses their own project.
-# Created locally by `npx firebase-tools use --add`.
+# Local Firebase deploy targets (project IDs) — not source, kept out of the public repo
 .firebaserc
+
+# Reference clone of the public OSS repo, kept alongside for cherry-picking
+atlas-oss/

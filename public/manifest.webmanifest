@@ -1,11 +1,11 @@
 {
-  "name": "Atlas",
-  "short_name": "Atlas",
-  "description": "Private workspace.",
+  "name": "MechCodes",
+  "short_name": "MechCodes",
+  "description": "Working Mech Arena promo codes, checked before they go up.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090B",
-  "theme_color": "#09090B",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
   "orientation": "portrait-primary",
   "icons": [
     {

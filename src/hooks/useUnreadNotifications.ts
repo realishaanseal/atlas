@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { APP_NAME } from '@/config';
+import { APP_NAME, NOTIFICATIONS } from '@/config';
 import { playTing } from '@/utils/sound';
 import type { NotificationSettings } from '@/hooks/useNotificationSettings';
 import type { Message, ParticipantId } from '@/types';
@@ -13,6 +13,8 @@ function preview(message: Message): string {
       return message.payload.mime === 'image/gif' ? 'GIF' : 'Photo';
     case 'video':
       return 'Video';
+    case 'file':
+      return message.payload.name;
     case 'audio':
       return 'Voice message';
     case 'call':
@@ -94,10 +96,19 @@ export function useUnreadNotifications(
 
       if (inTab && 'Notification' in window && Notification.permission === 'granted') {
         const notification = new Notification(APP_NAME, {
-          body: preview(message),
+          // A desktop notification is drawn by the operating system, outside
+          // anything this app controls, and it can appear on a locked screen or
+          // over a shared display. A preview of the message there would undo
+          // the concealment in the one place it cannot be undone — and a
+          // notification titled after a notes site whose body is a line of
+          // conversation is more conspicuous than no notification at all.
+          //
+          // Set NOTIFICATIONS.SHOW_PREVIEW to true if you would rather have the
+          // text and accept that.
+          body: NOTIFICATIONS.SHOW_PREVIEW ? preview(message) : 'Your library was updated.',
           // Same tag for all of them: a new message replaces the previous
           // notification rather than stacking twenty of them.
-          tag: 'atlas-message',
+          tag: 'library-update',
           // The Web Audio ting is the sound, gated by the user's own setting —
           // so the OS notification itself stays silent to avoid a double chime.
           silent: true,

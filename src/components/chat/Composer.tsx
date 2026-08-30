@@ -7,6 +7,8 @@ import {
   CornerUpLeft,
   ImagePlus,
   Loader2,
+  Paperclip,
+  Timer,
   Mic,
   PenLine,
   Plus,
@@ -15,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ReplyRef } from '@/types';
-import { AUDIO, IMAGES, MESSAGES, VIDEO, gifSearchEnabled } from '@/config';
+import { AUDIO, IMAGES, MESSAGES, RETENTION_OPTIONS, VIDEO, gifSearchEnabled } from '@/config';
 import { useRecorder } from '@/hooks/useRecorder';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
 import { useMentionNames } from '@/hooks/useMentionNames';
@@ -23,12 +25,20 @@ import { EmojiPicker } from './EmojiPicker';
 import { GifPicker } from './GifPicker';
 import { ScheduleModal } from './ScheduleModal';
 import type { GifResult } from '@/services/gifs';
+import { useBackClose } from '@/hooks/useBackGuard';
 import { cn } from '@/utils/cn';
 
 interface ComposerProps {
   onSend: (text: string) => void;
+  /** Single-image paths: paste, drag-drop and the camera sheet. */
   onSendImage: (file: File) => void;
-  onSendVideo: (file: File) => void;
+  /** The + → Media picker: photos and video, several at a time. */
+  onSendMedia: (files: File[]) => void;
+  /** The + → File picker: any file type, stored opaquely. */
+  onSendFiles: (files: File[]) => void;
+  /** Retention for the next message, in ms. Never longer than the 24h default. */
+  retentionMs: number;
+  onRetentionChange: (ms: number) => void;
   onSendVoice: (blob: Blob, durationMs: number, peaks: number[]) => void;
   onSendGif: (result: GifResult) => void;
   onOpenCamera: () => void;
@@ -58,7 +68,10 @@ function formatTime(ms: number): string {
 export function Composer({
   onSend,
   onSendImage,
-  onSendVideo,
+  onSendMedia,
+  onSendFiles,
+  retentionMs,
+  onRetentionChange,
   onSendVoice,
   onSendGif,
   onOpenCamera,
@@ -78,8 +91,22 @@ export function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
 
+  useBackClose(attachOpen, () => {
+    setAttachOpen(false);
+  });
+  useBackClose(emojiOpen, () => {
+    setEmojiOpen(false);
+  });
+  useBackClose(gifOpen, () => {
+    setGifOpen(false);
+  });
+  useBackClose(scheduleModalOpen, () => {
+    setScheduleModalOpen(false);
+  });
+
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const attachmentRef = useRef<HTMLInputElement | null>(null);
   const attachRef = useRef<HTMLDivElement | null>(null);
   const emojiRef = useRef<HTMLDivElement | null>(null);
   const gifRef = useRef<HTMLDivElement | null>(null);
@@ -514,14 +541,29 @@ export function Composer({
         <input
           ref={fileRef}
           type="file"
+          multiple
           accept={[...IMAGES.ACCEPTED_MIME, ...VIDEO.ACCEPTED_MIME].join(',')}
           className="hidden"
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              if (file.type.startsWith('video/')) onSendVideo(file);
-              else onSendImage(file);
-            }
+            // Handed over as a batch rather than looped here: the parent has to
+            // upload them one at a time (each is a sizeable encrypted write),
+            // and firing several calls from this handler would race the upload
+            // state against itself.
+            const files = Array.from(event.target.files ?? []);
+            if (files.length > 0) onSendMedia(files);
+            event.target.value = '';
+          }}
+        />
+        {/* Attachments: no accept filter, since the point is anything the media
+            picker will not take. */}
+        <input
+          ref={attachmentRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (files.length > 0) onSendFiles(files);
             event.target.value = '';
           }}
         />
@@ -549,6 +591,39 @@ export function Composer({
               >
                 <ImagePlus size={16} className="text-accent" aria-hidden />
                 Media
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAttachOpen(false);
+                  attachmentRef.current?.click();
+                }}
+                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
+                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
+              >
+                <Paperclip size={16} className="text-accent" aria-hidden />
+                File
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAttachOpen(false);
+                  // Cycles rather than opening another menu: three options is
+                  // fewer taps to step through than to pick from a submenu.
+                  const index = RETENTION_OPTIONS.findIndex((o) => o.ms === retentionMs);
+                  const next = RETENTION_OPTIONS[(index + 1) % RETENTION_OPTIONS.length];
+                  if (next) onRetentionChange(next.ms);
+                }}
+                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
+                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
+              >
+                <Timer size={16} className="text-accent" aria-hidden />
+                Disappears in
+                <span className="ml-auto text-xs text-muted">
+                  {RETENTION_OPTIONS.find((o) => o.ms === retentionMs)?.label ?? '24 hours'}
+                </span>
               </button>
               <button
                 type="button"

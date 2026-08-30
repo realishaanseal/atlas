@@ -375,6 +375,89 @@ export function useCall(
     })();
   }, [cameraOff]);
 
+  /**
+   * Screen sharing.
+   *
+   * The same `replaceTrack` trick as the camera switch: the outgoing video
+   * track is swapped for a display capture, which needs no renegotiation
+   * because the track kind is unchanged. The peer simply starts seeing a
+   * different picture.
+   *
+   * The camera track is kept alive (not stopped) while sharing, so stopping the
+   * share can put it straight back without asking for camera permission again
+   * or paying the ~1s device warm-up.
+   *
+   * Browsers also give the user their own "Stop sharing" control outside the
+   * page. Listening for the track ending is what keeps our state honest when
+   * they use it.
+   */
+  const [sharingScreen, setSharingScreen] = useState(false);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+
+  const swapVideoTrack = useCallback(async (track: MediaStreamTrack) => {
+    const session = sessionRef.current;
+    const stream = localStreamRef.current;
+    if (!session || !stream) return;
+
+    const sender = session.pc.getSenders().find((s) => s.track?.kind === 'video');
+    await sender?.replaceTrack(track);
+
+    for (const old of stream.getVideoTracks()) stream.removeTrack(old);
+    stream.addTrack(track);
+  }, []);
+
+  const stopScreenShare = useCallback(() => {
+    void (async () => {
+      const stream = localStreamRef.current;
+      const camera = cameraTrackRef.current;
+      if (!stream) return;
+
+      for (const track of stream.getVideoTracks()) {
+        if (track.kind === 'video' && track !== camera) track.stop();
+      }
+
+      if (camera && camera.readyState === 'live') {
+        camera.enabled = !cameraOff;
+        await swapVideoTrack(camera);
+      }
+      cameraTrackRef.current = null;
+      setSharingScreen(false);
+    })();
+  }, [cameraOff, swapVideoTrack]);
+
+  const startScreenShare = useCallback(() => {
+    void (async () => {
+      const stream = localStreamRef.current;
+      if (!stream) return;
+
+      try {
+        const display = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          // Audio deliberately not captured: it would have to be mixed with the
+          // microphone track, and sharing system sound unexpectedly is worse
+          // than not offering it.
+          audio: false,
+        });
+        const track = display.getVideoTracks()[0];
+        if (!track) return;
+
+        cameraTrackRef.current = stream.getVideoTracks()[0] ?? null;
+
+        // Ended from the browser's own bar rather than our button.
+        track.addEventListener('ended', stopScreenShare, { once: true });
+
+        await swapVideoTrack(track);
+        setSharingScreen(true);
+      } catch {
+        // Cancelled at the picker, or unsupported. Nothing to undo.
+      }
+    })();
+  }, [stopScreenShare, swapVideoTrack]);
+
+  const canShareScreen =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+
   // Clean up if the component unmounts mid-call.
   useEffect(() => {
     return () => {
@@ -400,6 +483,9 @@ export function useCall(
     toggleCamera,
     switchCamera,
     canSwitchCamera,
+    sharingScreen,
+    canShareScreen,
+    toggleScreenShare: sharingScreen ? stopScreenShare : startScreenShare,
     dismissError: () => {
       setError(null);
       if (phase === 'failed') reset();

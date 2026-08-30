@@ -4,16 +4,44 @@ import { Button } from '@/components/ui/Button';
 import { APP_NAME } from '@/config';
 import { assessPassphrase, generatePassphrase } from '@/crypto/strength';
 import { cn } from '@/utils/cn';
-import type { SessionStatus } from '@/hooks/useSession';
+import type { SessionReason, SessionStatus } from '@/hooks/useSession';
 
 interface LockScreenProps {
   status: SessionStatus;
-  message: string | null;
+  reason: SessionReason | null;
   onSubmit: (passphrase: string) => void | Promise<void>;
 }
 
 /**
- * The lock screen.
+ * Wording lives here rather than in the session hook.
+ *
+ * The hook is eagerly loaded and its strings ship to every visitor of the
+ * public site; this screen is lazy and only ever reached deliberately, so it is
+ * free to say "passphrase" out loud.
+ */
+function describe(reason: SessionReason): string {
+  switch (reason.kind) {
+    case 'bad-code':
+      return 'Incorrect passphrase.';
+    case 'rate-limited':
+      return reason.seconds > 0
+        ? `Too many attempts. Wait ${String(reason.seconds)}s.`
+        : 'Too many attempts. Wait a moment.';
+    case 'network':
+      return 'Could not reach the workspace. Check your connection.';
+    default:
+      return 'Something went wrong. Try again.';
+  }
+}
+
+/**
+ * The passphrase screen.
+ *
+ * No longer the front door — the public site is, and its access-code field
+ * handles every ordinary unlock. This screen survives for the one case that
+ * field deliberately refuses to serve: establishing a passphrase when none
+ * exists, which happens exactly once at first run and again after a rotation.
+ * It lives at the unlisted route in cover/CoverSite.tsx and 404s otherwise.
  *
  * Nothing here suggests a messenger. No logo, no product copy, no hint in the
  * tab title. Someone glancing over your shoulder sees a workspace login.
@@ -29,7 +57,8 @@ interface LockScreenProps {
  * effect is transform/opacity only, and all of it is disabled by the global
  * reduced-motion rule.
  */
-export default function LockScreen({ status, message, onSubmit }: LockScreenProps) {
+export default function LockScreen({ status, reason, onSubmit }: LockScreenProps) {
+  const message = reason === null ? null : describe(reason);
   const [value, setValue] = useState('');
   const [revealed, setRevealed] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -145,7 +174,7 @@ export default function LockScreen({ status, message, onSubmit }: LockScreenProp
 
             <h1 className="text-[1.5rem] font-semibold tracking-[-0.03em]">{APP_NAME}</h1>
             <p className="mt-1.5 text-sm text-secondary">
-              {isSetup ? 'Choose a password to begin' : 'Private workspace'}
+              {isSetup ? 'Set the admin passphrase' : 'Restore access'}
             </p>
           </header>
 
@@ -275,9 +304,9 @@ export default function LockScreen({ status, message, onSubmit }: LockScreenProp
                   {status === 'working' ? 'Unlocking' : 'Loading'}
                 </>
               ) : isSetup ? (
-                'Create workspace'
+                'Set code'
               ) : (
-                'Unlock'
+                'Continue'
               )}
             </Button>
 
@@ -301,8 +330,8 @@ export default function LockScreen({ status, message, onSubmit }: LockScreenProp
 
         {isSetup && (
           <p className="mt-5 text-center text-xs leading-relaxed text-muted">
-            This password encrypts everything and is never stored or sent anywhere. If you lose it,
-            the conversation cannot be recovered.
+            This code encrypts everything and is never stored or sent anywhere. If you lose it,
+            nothing behind it can be recovered.
           </p>
         )}
       </div>

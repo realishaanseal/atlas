@@ -338,18 +338,18 @@
      inline translateX); on a chip it would block the hover scale. So anything
      animating an element that is later transformed by something else uses
      `backwards` — identical on the way in, but it lets go when it finishes. */
-  .animate-bubble-in {
-    animation: bubble-in 280ms var(--ease-spring) backwards;
+  .animate-card-in {
+    animation: card-in 280ms var(--ease-spring) backwards;
   }
 
   /* Directional arrivals: your own messages fly in from the send button's side,
      theirs from the opposite edge. Same duration, mirrored origin — the message
      appears to come FROM somewhere rather than fade in place. */
-  .animate-bubble-mine {
-    animation: bubble-mine 340ms var(--ease-spring) backwards;
+  .animate-enter-right {
+    animation: enter-right 340ms var(--ease-spring) backwards;
   }
-  .animate-bubble-theirs {
-    animation: bubble-theirs 340ms var(--ease-spring) backwards;
+  .animate-enter-left {
+    animation: enter-left 340ms var(--ease-spring) backwards;
   }
 
   /* Press feedback. Applied to interactive elements so the whole app responds
@@ -505,8 +505,8 @@
      `forwards` on the exit is deliberate: it must hold the invisible final
      state for the moment between the animation ending and React unmounting it,
      or it would flash back to full opacity. */
-  .animate-lock-out {
-    animation: lock-out 520ms var(--ease-soft) forwards;
+  .animate-veil-out {
+    animation: veil-out 520ms var(--ease-soft) forwards;
   }
 
   .animate-app-in {
@@ -525,7 +525,7 @@
   }
 }
 
-@keyframes bubble-in {
+@keyframes card-in {
   from {
     opacity: 0;
     transform: translateY(10px) scale(0.96);
@@ -536,7 +536,7 @@
   }
 }
 
-@keyframes bubble-mine {
+@keyframes enter-right {
   from {
     opacity: 0;
     transform: translate(14px, 12px) scale(0.9);
@@ -547,7 +547,7 @@
   }
 }
 
-@keyframes bubble-theirs {
+@keyframes enter-left {
   from {
     opacity: 0;
     transform: translate(-14px, 12px) scale(0.9);
@@ -558,7 +558,7 @@
   }
 }
 
-@keyframes typing-bounce {
+@keyframes dot-bounce {
   0%,
   60%,
   100% {
@@ -729,7 +729,7 @@
   }
 }
 
-@keyframes lock-out {
+@keyframes veil-out {
   0% {
     opacity: 1;
     transform: scale(1);

@@ -31,7 +31,7 @@ export interface ArchivedMessage {
   readonly id: string;
   readonly sender: 'a' | 'b';
   readonly createdAt: number;
-  readonly kind: 'text' | 'image' | 'audio' | 'call' | 'video';
+  readonly kind: 'text' | 'image' | 'audio' | 'call' | 'video' | 'file';
   readonly editedAt?: number;
   readonly originalText?: string;
   /** Text messages. Stored with its stored `<@slot>` mention tokens intact. */
@@ -43,6 +43,8 @@ export interface ArchivedMessage {
   readonly height?: number;
   readonly mime?: string;
   readonly durationMs?: number;
+  /** Attachment filename, for the export's download link. */
+  readonly fileName?: string;
   /** Call log entries. */
   readonly callKind?: 'audio' | 'video';
   readonly outcome?: 'completed' | 'missed' | 'declined';
@@ -52,7 +54,7 @@ export interface ArchivedMessage {
   /** Snapshot of the quoted message, if this was a reply. */
   readonly replyTo?: {
     readonly sender: 'a' | 'b';
-    readonly kind: 'text' | 'image' | 'audio' | 'call' | 'video';
+    readonly kind: 'text' | 'image' | 'audio' | 'call' | 'video' | 'file';
     readonly preview: string;
   };
   /** When this device first captured it. */
@@ -61,7 +63,7 @@ export interface ArchivedMessage {
 
 export interface ArchivedMedia {
   readonly id: string;
-  readonly kind: 'image' | 'audio' | 'video';
+  readonly kind: 'image' | 'audio' | 'video' | 'file';
   readonly mime: string;
   readonly bytes: ArrayBuffer;
   readonly byteSize: number;

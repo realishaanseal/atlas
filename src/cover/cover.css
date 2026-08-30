@@ -1,0 +1,54 @@
+/**
+ * Public-site overrides.
+ *
+ * The app proper is a fixed-height, non-scrolling surface — `html`, `body` and
+ * `#root` are all pinned to the visible viewport and `body` is
+ * `overflow: hidden`, because a chat window should never scroll as a page. A
+ * content site is the opposite on every count, so while the cover is mounted
+ * these rules take the constraints back off.
+ *
+ * Deliberately NOT inside `@layer base`. Unlayered declarations outrank layered
+ * ones in the cascade regardless of source order, so these win over the base
+ * layer without `!important` and without depending on which stylesheet Vite
+ * happens to emit first.
+ *
+ * Both surfaces are dark, which is what a site about a mobile game would be
+ * anyway — but the palette here is a separate set of literals, never the app's
+ * design tokens. If it used the tokens, changing the accent inside the app
+ * would visibly retint the public site, and the two would obviously belong to
+ * each other.
+ */
+
+html.cover,
+html.cover body,
+html.cover #root {
+  height: auto;
+  min-height: 100%;
+}
+
+html.cover body {
+  overflow: visible;
+  overscroll-behavior-y: auto;
+  color: #e8eaed;
+  background-color: #0b0e14;
+  /* Clears the app's four fixed radial glows in one line. */
+  background-image: none;
+}
+
+html.cover ::selection {
+  background-color: #f59e0b;
+  color: #1a1204;
+}
+
+html.cover :focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+html.cover * {
+  scrollbar-color: #2b3442 transparent;
+}
+
+html.cover *::-webkit-scrollbar-thumb {
+  background-color: #2b3442;
+}

@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Check,
   CheckCheck,
@@ -7,6 +8,7 @@ import {
   CornerUpLeft,
   Image as ImageIcon,
   Film,
+  Paperclip,
   Mic,
   MoreHorizontal,
   Pin,
@@ -17,6 +19,7 @@ import { maskSpoilers } from '@/utils/spoiler';
 import { ImageBubble } from './ImageBubble';
 import { AudioBubble } from './AudioBubble';
 import { VideoBubble } from './VideoBubble';
+import { FileBubble } from './FileBubble';
 import { ReactionRow, ReactionPicker } from './ReactionRow';
 import { MessageMenu } from './MessageMenu';
 import { EmojiText } from './EmojiText';
@@ -24,6 +27,7 @@ import { CallLogEntry } from './CallLogEntry';
 import { useSwipeToReply } from '@/hooks/useSwipeToReply';
 import type { Message, ParticipantId } from '@/types';
 import type { Position } from '@/utils/messageGroups';
+import { useBackClose } from '@/hooks/useBackGuard';
 import { cn } from '@/utils/cn';
 
 interface BubbleProps {
@@ -52,9 +56,13 @@ function timeLabel(timestamp: number): string {
 /**
  * Delivery state, rendered inside our own (accent-coloured) bubble.
  *
- * Colour alone must not carry meaning here — the bubble is already accent
- * blue, so an accent-blue "read" tick is literally invisible against it. The
- * distinction is carried by the glyph (one check vs two) and by opacity.
+ * One tick sent, two delivered, two tinted read — the convention everyone
+ * already knows. The colour cannot be the usual blue: the bubble is ITSELF an
+ * accent-blue gradient, so blue-on-blue would be invisible. A bright cyan reads
+ * clearly against it and still says "different, and further along".
+ *
+ * Colour never carries the meaning alone regardless — the glyph (one check vs
+ * two) and the opacity do, so the state survives being seen in greyscale.
  */
 function StateIcon({ state }: { state: Message['state'] }) {
   switch (state) {
@@ -63,10 +71,136 @@ function StateIcon({ state }: { state: Message['state'] }) {
     case 'failed':
       return <AlertCircle size={13} className="text-white" aria-label="Failed to send" />;
     case 'read':
-      return <CheckCheck size={14} className="text-white" aria-label="Read" />;
+      return <CheckCheck size={14} className="text-cyan-300" aria-label="Read" />;
+    case 'delivered':
+      return <CheckCheck size={14} className="opacity-80" aria-label="Delivered" />;
     default:
       return <Check size={13} className="opacity-70" aria-label="Sent" />;
   }
+}
+
+function receiptTime(ms: number): string {
+  return new Date(ms).toLocaleString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/**
+ * The receipt detail, opened by tapping the tick.
+ *
+ * Rendered through a PORTAL with fixed positioning, not as a child of the
+ * bubble. The bubble is `overflow-hidden` (it has to be — the media fills it
+ * edge to edge and the ping bar hugs its rounded corners), so anything absolute
+ * inside it gets clipped and buried in its stacking context. Measuring the
+ * tick and painting to document.body escapes both.
+ *
+ * Rows appear only once they have actually happened, so the panel never shows
+ * a blank "Read —" that invites you to wonder whether it failed.
+ */
+function ReceiptPopover({
+  message,
+  anchorRef,
+  onClose,
+}: {
+  message: Message;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    // Anchored to the tick's top-right, opening upward — the tick sits at the
+    // bottom of the bubble, so there is room above and rarely below.
+    setPos({
+      right: Math.max(8, window.innerWidth - rect.right),
+      bottom: Math.max(8, window.innerHeight - rect.top + 6),
+    });
+  }, [anchorRef]);
+
+  // The panel is fixed, so a scroll would leave it floating away from its
+  // message. Closing is honest and cheaper than tracking the anchor.
+  useEffect(() => {
+    const onScroll = () => {
+      onClose();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    // Attached next tick: the click that opened this is still propagating, and
+    // registering synchronously would catch it and close immediately.
+    const attach = setTimeout(() => {
+      document.addEventListener('pointerdown', onDown);
+    }, 0);
+    function onDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) onClose();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(attach);
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  const rows: { label: string; at: number; tint?: string }[] = [
+    { label: 'Sent', at: message.createdAt },
+    ...(message.deliveredAt !== undefined
+      ? [{ label: 'Delivered', at: message.deliveredAt }]
+      : []),
+    ...(message.readAt !== undefined
+      ? [{ label: 'Read', at: message.readAt, tint: 'text-cyan-300' }]
+      : []),
+  ];
+
+  if (!pos) return null;
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-label="Message info"
+      style={{ right: pos.right, bottom: pos.bottom }}
+      className="glass animate-scale-in fixed z-[60] w-max min-w-[11rem] origin-bottom-right
+                 rounded-md border border-border p-2.5 text-left shadow-lift"
+    >
+      <p className="mb-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
+        Message info
+      </p>
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-baseline justify-between gap-4 text-xs">
+            <span className={cn('text-secondary', row.tint)}>{row.label}</span>
+            <span className="tabular-nums text-text">{receiptTime(row.at)}</span>
+          </div>
+        ))}
+        {/* Only when genuinely undelivered. A message read on a client that
+            predates delivery receipts has readAt but no deliveredAt — being
+            read obviously implies it arrived, so claiming otherwise would be
+            wrong. */}
+        {message.deliveredAt === undefined && message.readAt === undefined && (
+          <p className="pt-0.5 text-[0.625rem] leading-snug text-muted">
+            Not delivered yet — waiting for their device.
+          </p>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 /**
@@ -130,6 +264,7 @@ function ReplyQuote({
     >
       {reply.kind === 'image' && <ImageIcon size={12} className="shrink-0" aria-hidden />}
       {reply.kind === 'video' && <Film size={12} className="shrink-0" aria-hidden />}
+      {reply.kind === 'file' && <Paperclip size={12} className="shrink-0" aria-hidden />}
       {reply.kind === 'audio' && <Mic size={12} className="shrink-0" aria-hidden />}
       <span className="truncate">{reply.preview}</span>
     </button>
@@ -158,6 +293,21 @@ export function Bubble({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const tickRef = useRef<HTMLButtonElement | null>(null);
+  useBackClose(pickerOpen, () => {
+    setPickerOpen(false);
+  });
+  useBackClose(menuOpen, () => {
+    setMenuOpen(false);
+  });
+  useBackClose(receiptOpen, () => {
+    setReceiptOpen(false);
+  });
+  useBackClose(editing, () => {
+    setEditing(false);
+  });
+
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const swipe = useSwipeToReply(() => {
@@ -404,7 +554,7 @@ export function Bubble({
           }}
           className={cn(
             'relative overflow-hidden',
-            mine ? 'animate-bubble-mine' : 'animate-bubble-theirs',
+            mine ? 'animate-enter-right' : 'animate-enter-left',
             'text-[0.9375rem] leading-relaxed',
             cornerClasses(mine, position),
             isVisualMedia ? '' : isAudio ? 'w-[min(78vw,17rem)] px-3 py-2' : 'px-4 py-2.5',
@@ -452,6 +602,8 @@ export function Bubble({
             <ImageBubble cryptoKey={cryptoKey} payload={message.payload} onOpen={onOpenImage} />
           ) : message.payload.kind === 'video' ? (
             <VideoBubble cryptoKey={cryptoKey} payload={message.payload} />
+          ) : message.payload.kind === 'file' ? (
+            <FileBubble cryptoKey={cryptoKey} payload={message.payload} mine={mine} />
           ) : message.payload.kind === 'audio' ? (
             <AudioBubble cryptoKey={cryptoKey} payload={message.payload} mine={mine} />
           ) : editing ? (
@@ -492,7 +644,7 @@ export function Bubble({
                escapes these, which is the XSS defence — no sanitiser needed.
                EmojiText only swaps in <img> for shortcodes that resolve to an
                emoji in the pack; everything else stays literal text. */
-            <EmojiText text={message.payload.text} />
+            <EmojiText text={message.payload.text} createdAt={message.createdAt} />
           )}
 
           {(showMeta || isVisualMedia) && (
@@ -507,7 +659,37 @@ export function Bubble({
               <time dateTime={new Date(message.createdAt).toISOString()}>
                 {timeLabel(message.createdAt)}
               </time>
-              {mine && <StateIcon state={message.state} />}
+              {mine && (
+                // Wrapped in a relative button so the popover can anchor to the
+                // tick itself. `pointer-events-auto` because on media bubbles
+                // the whole meta strip is pointer-events-none (it sits over the
+                // image), and the tick is the one thing in it that is tappable.
+                <span className="pointer-events-auto">
+                  <button
+                    ref={tickRef}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setReceiptOpen((open) => !open);
+                    }}
+                    aria-label="Message info"
+                    aria-expanded={receiptOpen}
+                    className="press flex items-center rounded px-0.5 hover:opacity-100"
+                  >
+                    <StateIcon state={message.state} />
+                  </button>
+
+                  {receiptOpen && (
+                    <ReceiptPopover
+                      message={message}
+                      anchorRef={tickRef}
+                      onClose={() => {
+                        setReceiptOpen(false);
+                      }}
+                    />
+                  )}
+                </span>
+              )}
             </div>
           )}
         </div>

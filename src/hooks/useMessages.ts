@@ -92,13 +92,13 @@ export function useMessages(key: CryptoKey, slot: ParticipantId) {
   }, []);
 
   const send = useCallback(
-    async (payload: MessagePayload) => {
+    async (payload: MessagePayload, retentionMs?: number) => {
       const [service, outbox] = await Promise.all([
         import('@/services/messages'),
         import('@/storage/outbox'),
       ]);
 
-      const prepared = await service.prepare(key, payload);
+      const prepared = await service.prepare(key, payload, retentionMs);
 
       const optimistic: Message = {
         id: prepared.id,
@@ -126,6 +126,34 @@ export function useMessages(key: CryptoKey, slot: ParticipantId) {
     },
     [key, slot],
   );
+
+  /**
+   * Confirms receipt of the peer's messages.
+   *
+   * Runs on every snapshot and does NOT wait for the tab to be visible — that
+   * is the whole point: "delivered" must mean their device has it, while
+   * "read" waits until they are actually looking. Already-stamped messages are
+   * skipped, so this is one extra write per incoming message and nothing more.
+   *
+   * Failures are swallowed individually: an offline or already-written receipt
+   * must never disrupt the message list.
+   */
+  const stampedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const pending = messages.filter(
+      (m) => m.sender !== slot && m.deliveredAt === undefined && !stampedRef.current.has(m.id),
+    );
+    if (pending.length === 0) return;
+
+    // Marked before the write resolves so a second snapshot arriving mid-flight
+    // does not queue the same receipt twice.
+    for (const message of pending) stampedRef.current.add(message.id);
+
+    void (async () => {
+      const { markDelivered } = await import('@/services/messages');
+      await Promise.allSettled(pending.map((m) => markDelivered(m.id)));
+    })();
+  }, [messages, slot]);
 
   /** Marks the peer's unread messages as read. Rules reject marking our own. */
   const markVisibleRead = useCallback(() => {

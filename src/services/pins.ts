@@ -42,6 +42,15 @@ export function mediaRef(message: Message): PinMediaRef | undefined {
         : {}),
     };
   }
+  if (message.payload.kind === 'file') {
+    return {
+      kind: 'file',
+      id: message.payload.fileId,
+      ...(message.payload.chunks && message.payload.chunks > 1
+        ? { chunks: message.payload.chunks }
+        : {}),
+    };
+  }
   if (message.payload.kind === 'audio') {
     return { kind: 'audio', id: message.payload.audioId };
   }
@@ -51,7 +60,7 @@ export function mediaRef(message: Message): PinMediaRef | undefined {
 /** Every document id a media ref covers — image and video may be chunked. */
 function mediaDocPaths(media: PinMediaRef): string[] {
   if (media.kind === 'audio') return [paths.audioClip(media.id)];
-  const at = media.kind === 'video' ? paths.video : paths.image;
+  const at = media.kind === 'video' ? paths.video : media.kind === 'file' ? paths.file : paths.image;
   const chunks = media.chunks ?? 1;
   if (chunks <= 1) return [at(media.id)];
   return Array.from({ length: chunks }, (_, index) => at(`${media.id}-c${String(index)}`));
@@ -83,6 +92,8 @@ function previewFor(message: Message): { preview: string; text?: string } {
       return { preview: message.payload.mime === 'image/gif' ? 'GIF' : 'Photo' };
     case 'video':
       return { preview: 'Video' };
+    case 'file':
+      return { preview: message.payload.name };
     case 'audio':
       return { preview: 'Voice message' };
     case 'call':

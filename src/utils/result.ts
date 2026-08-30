@@ -16,7 +16,9 @@ export const ok = <T>(value: T): Result<T, never> => ({ ok: true, value });
 export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
 
 export type AppErrorCode =
-  | 'bad-passphrase'
+  | 'bad-key'
+  /** Unlock backoff. The message carries the remaining seconds as a string. */
+  | 'rate-limited'
   | 'decrypt-failed'
   | 'device-not-paired'
   | 'pairing-full'
