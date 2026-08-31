@@ -16,8 +16,8 @@ rules_version = '2';
 //      non-sender may set, and only once.
 //   4. Every write is shape-validated: exact key sets, types, and hard byte
 //      caps, so a compromised client cannot inflate storage costs.
-//   5. `expiresAt` must equal `createdAt + 24h`. Clients cannot opt out of
-//      retention, and expired documents cannot be read.
+//   5. `expiresAt` must equal `createdAt + retentionMs()` (30 days). Clients
+//      cannot opt out of retention, and expired documents cannot be read.
 // ---------------------------------------------------------------------------
 
 service cloud.firestore {
@@ -83,6 +83,13 @@ service cloud.firestore {
       return 32503680000000;
     }
 
+    // Standard retention: 30 days in ms. Must match RETENTION_MS in config.ts.
+    // This is the ceiling for every message and media document — a client may
+    // choose a shorter lifetime per message, never a longer one.
+    function retentionMs() {
+      return 2592000000;
+    }
+
     // Base64url only. Rejects padding, whitespace, and anything that could be
     // smuggled into a path or rendered as markup.
     function isB64(value, maxLen) {
@@ -102,13 +109,14 @@ service cloud.firestore {
         && isB64(e.ct, maxCt);
     }
 
-    // 24h retention, enforced server-side. ±60s tolerance for clock skew.
+    // Retention, enforced server-side: expiresAt exactly retentionMs() past
+    // createdAt, with createdAt within ±60s of now for clock skew.
     function validRetention(data) {
       return data.createdAt is int
         && data.expiresAt is int
         && data.createdAt >= now() - 60000
         && data.createdAt <= now() + 60000
-        && data.expiresAt == data.createdAt + 86400000;
+        && data.expiresAt == data.createdAt + retentionMs();
     }
 
     function notExpired(data) {
@@ -328,8 +336,8 @@ service cloud.firestore {
         // sorts into the timeline at its delivery time and the recipient's
         // client hides it until then. That is why the upper bound on createdAt
         // is a week out here rather than the ±1min of `validRetention`, while
-        // expiresAt stays exactly 24h past createdAt (so a scheduled message
-        // lives 24h after it is delivered, not after it was written).
+        // expiresAt stays within retentionMs() of createdAt (so a scheduled
+        // message's clock starts when it is delivered, not when it was written).
         allow create: if isPaired(roomId)
           && request.resource.data.keys().hasOnly(
                ['sender', 'createdAt', 'expiresAt', 'body'])
@@ -341,12 +349,11 @@ service cloud.firestore {
           && request.resource.data.createdAt >= now() - 60000
           && request.resource.data.createdAt <= now() + 604800000
           // Retention is chosen per message, but only DOWNWARD: anything from a
-          // minute up to the standard 24 hours. The ceiling is the point — a
-          // client cannot opt out of retention or keep a message indefinitely,
-          // which was the original guarantee. Shorter is always allowed because
-          // it only ever destroys data sooner.
+          // minute up to the standard 30 days. The ceiling is the point — a
+          // client cannot opt out of retention or keep a message indefinitely.
+          // Shorter is always allowed because it only ever destroys data sooner.
           && request.resource.data.expiresAt > request.resource.data.createdAt
-          && request.resource.data.expiresAt <= request.resource.data.createdAt + 86400000
+          && request.resource.data.expiresAt <= request.resource.data.createdAt + retentionMs()
           // ~12 KB ciphertext ceiling. Text is padded to at most 4096 bytes
           // before encryption; image messages carry only a wrapped key and a
           // small blur preview, never the image itself.
@@ -430,7 +437,7 @@ service cloud.firestore {
                       .hasOnly(['body', 'editedAt']))
              );
 
-        // Pinning keeps a message past the 24h sweep; unpinning restores its
+        // Pinning keeps a message past the sweep; unpinning restores its
         // normal expiry. Only `expiresAt` may change, and only in agreement with
         // whether a pin document exists for this message — so a message's life
         // can be extended only while it is genuinely pinned. Every other field,
@@ -442,7 +449,7 @@ service cloud.firestore {
                (pinnedExists(roomId, messageId)
                  && request.resource.data.expiresAt == pinKeepUntil())
                || (!pinnedExists(roomId, messageId)
-                 && request.resource.data.expiresAt == resource.data.createdAt + 86400000)
+                 && request.resource.data.expiresAt == resource.data.createdAt + retentionMs())
              );
 
         // Deletes are the retention sweep (only expired documents), OR a sender
@@ -489,14 +496,14 @@ service cloud.firestore {
         // writer still cannot swap the image under an id the peer has accepted.
         // This exists so pinning a message can keep its image past the sweep:
         // the new value is either the far-future pin sentinel (extend) or at
-        // most 24h out (restore). The pin link is checked on the message doc,
+        // most retentionMs() out (restore). The pin link is checked on the message doc,
         // not here — an image document does not know which message references
         // it — so this is a deliberate, value-bounded relaxation.
         allow update: if isPaired(roomId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
           && request.resource.data.expiresAt is int
           && (request.resource.data.expiresAt == pinKeepUntil()
-              || request.resource.data.expiresAt <= now() + 86400000);
+              || request.resource.data.expiresAt <= now() + retentionMs());
 
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }
@@ -505,7 +512,7 @@ service cloud.firestore {
       //
       // Same shape and constraints as images: encrypted bytes, chunked across
       // documents (videos/{id}-c0 …) because one clip far exceeds the 1 MiB
-      // document cap, each chunk with its own IV and its own 24h expiry so the
+      // document cap, each chunk with its own IV and its own 30-day expiry so the
       // sweep collects them without knowing they are chunks. Stored byte-for-byte
       // like GIFs — no server-side transcode — so the per-doc ceiling is the same
       // hard backstop as images.
@@ -529,7 +536,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
           && request.resource.data.expiresAt is int
           && (request.resource.data.expiresAt == pinKeepUntil()
-              || request.resource.data.expiresAt <= now() + 86400000);
+              || request.resource.data.expiresAt <= now() + retentionMs());
 
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }
@@ -537,7 +544,7 @@ service cloud.firestore {
       // --- file attachments -------------------------------------------------
       //
       // Same shape as videos: encrypted bytes, chunked across documents, each
-      // chunk with its own 24h expiry so the sweep collects them without knowing
+      // chunk with its own 30-day expiry so the sweep collects them without knowing
       // they are chunks. The filename and MIME live inside the message payload,
       // encrypted — never here, where they would describe the conversation in
       // the clear.
@@ -560,7 +567,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
           && request.resource.data.expiresAt is int
           && (request.resource.data.expiresAt == pinKeepUntil()
-              || request.resource.data.expiresAt <= now() + 86400000);
+              || request.resource.data.expiresAt <= now() + retentionMs());
 
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }
@@ -568,7 +575,7 @@ service cloud.firestore {
       // --- custom emoji ----------------------------------------------------
       //
       // The one collection in this app with NO expiry, and that is the whole
-      // point of it. Everything else is swept after 24 hours; an emoji pack
+      // point of it. Everything else is swept after 30 days; an emoji pack
       // that evaporated daily would be useless. So `emojis` documents carry no
       // `expiresAt`, and `validRetention` is deliberately not applied.
       //
@@ -623,14 +630,14 @@ service cloud.firestore {
       // --- pinned messages -------------------------------------------------
       //
       // Like emoji, these do NOT expire — a pin that vanished with its message
-      // after 24 hours would be pointless. So no `expiresAt`, and
+      // after 30 days would be pointless. So no `expiresAt`, and
       // `validRetention` is deliberately not applied.
       //
       // The document id is the message id. That makes pinning idempotent and
       // unpinning a plain delete, and it satisfies the same id pattern the
       // other collections use, so no special validation is needed.
       //
-      // The message itself is swept after 24 hours, so the pin cannot lean on
+      // The message itself is swept after 30 days, so the pin cannot lean on
       // it: the displayable content is snapshotted into `snapshot` (encrypted)
       // at pin time. That snapshot is content — the pinned message's text — so
       // it is encrypted like everything else, never stored in the clear.
@@ -666,7 +673,7 @@ service cloud.firestore {
       // --- doodles ---------------------------------------------------------
       //
       // Shared drawings over the chat, anchored to a message and expiring on the
-      // same 24h schedule so a doodle lives as long as what it was drawn over.
+      // same schedule so a doodle lives as long as what it was drawn over.
       // The strokes are encrypted — a drawing is content — and write-once, like
       // images. Either paired device may erase one.
 
@@ -815,7 +822,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt'])
           && request.resource.data.expiresAt is int
           && (request.resource.data.expiresAt == pinKeepUntil()
-              || request.resource.data.expiresAt <= now() + 86400000);
+              || request.resource.data.expiresAt <= now() + retentionMs());
 
         allow delete: if isPaired(roomId) && resource.data.expiresAt <= now();
       }

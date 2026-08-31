@@ -13,7 +13,7 @@ import { AppError } from '@/utils/result';
  * two deliberate differences.
  *
  * First, no expiry. Every other collection carries `expiresAt` and gets swept
- * after 24 hours; an emoji pack that did that would be pointless, so these
+ * after 30 days; an emoji pack that did that would be pointless, so these
  * documents have no expiry field at all and the rules do not apply
  * `validRetention` to them.
  *

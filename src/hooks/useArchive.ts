@@ -10,7 +10,7 @@ import type { Message, ParticipantId } from '@/types';
  * so the B device never captures, never exports, and the UI never offers it.
  *
  * Capture is debounced — messages arrive in bursts, and each run re-reads the
- * archive to dedupe — but always fires within the 24h window while the media
+ * archive to dedupe — but always fires within the retention window while the media
  * documents still exist, which is the only hard timing constraint.
  */
 

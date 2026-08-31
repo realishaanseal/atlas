@@ -10,7 +10,7 @@ import { AppError } from '@/utils/result';
 /**
  * Shared doodles, synced and encrypted.
  *
- * A doodle is stored against a message (`anchorId`) and expires on the same 24h
+ * A doodle is stored against a message (`anchorId`) and expires on the same 30-day
  * clock, so it lasts exactly as long as what it was drawn over. The strokes are
  * JSON, encrypted like any other content — nobody but the two devices learns
  * that a drawing happened, let alone its shape.

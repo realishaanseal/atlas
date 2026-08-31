@@ -623,7 +623,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
 
           {messages.length === 0 && (
             <p className="py-10 text-center text-sm text-muted">
-              Messages disappear after 24 hours.
+              Messages disappear after 30 days.
             </p>
           )}
 

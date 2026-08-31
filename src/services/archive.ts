@@ -6,10 +6,10 @@ import type { ArchivedEmoji, ArchivedMedia, ArchivedMessage } from '@/storage/ar
  * Capturing the decrypted chat into the local archive.
  *
  * The app already decrypts every message to render it; this module mirrors that
- * decrypted view into IndexedDB (storage/archive) so it survives Firebase's 24h
+ * decrypted view into IndexedDB (storage/archive) so it survives Firebase's 30-day
  * sweep. Media bytes are fetched and stored the first time a message is seen,
  * because the image/voice documents expire too — capture has to happen inside
- * the 24h window or not at all.
+ * the retention window or not at all.
  *
  * Runs on the A side only; the caller (useArchive) enforces that.
  */

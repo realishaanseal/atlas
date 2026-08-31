@@ -12,7 +12,7 @@ import { ROOM_ID } from '@/config';
  *   rooms/{roomId}/presence/{a|b}   — online / lastSeen / typing
  *   rooms/{roomId}/images/{id}      — encrypted image bytes, one doc per image
  *   rooms/{roomId}/emojis/{id}      — custom emoji; no expiry, since a pack
- *                                     that vanished every 24 hours would be
+ *                                     that vanished would be
  *                                     pointless
  *   rooms/{roomId}/pins/{id}        — pinned messages; also no expiry. id is
  *                                     the message id. Content is snapshotted in

@@ -248,7 +248,7 @@ export const CUSTOM_REACTION_PREFIX = 'custom:';
  *
  * Like custom emoji, this collection does NOT expire — a pin that vanished
  * with the message would defeat the point of pinning. And because the original
- * message IS swept after 24 hours, the pin cannot just reference it: the
+ * message IS swept after 30 days, the pin cannot just reference it: the
  * displayable content is snapshotted INTO the pin (encrypted) at pin time, the
  * same trick `ReplyRef` uses so a quote outlives its original.
  *
@@ -272,7 +272,7 @@ export interface PinDoc {
  * `nicknames/{slot}`, where `slot` is the SETTER's slot — so `nicknames/b`
  * holds B's label for A, and only A reads it. The name is encrypted, like every
  * other piece of content, so no plaintext label ever touches the database. No
- * expiry: a nickname that evaporated every 24h would be pointless, same as
+ * expiry: a nickname that evaporated would be pointless, same as
  * emoji and pins.
  */
 export interface NicknameDoc {
@@ -322,7 +322,7 @@ export interface Pin extends PinSnapshot {
  *
  * Anchored to a message: its strokes are positioned relative to that message,
  * so the drawing rides along as the chat scrolls and expires when the message
- * does (24h). Synced and encrypted like everything else — a drawing is content.
+ * does. Synced and encrypted like everything else — a drawing is content.
  *
  * X coordinates are a fraction of the chat width (0–1), because the two devices
  * have different widths; Y is pixels below the anchor, since line height is the

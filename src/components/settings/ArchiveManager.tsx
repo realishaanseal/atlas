@@ -68,7 +68,7 @@ export function ArchiveManager({
 
         <div className="space-y-4 p-4">
           <p className="text-[0.8125rem] leading-relaxed text-secondary">
-            Messages vanish from the cloud after 24 hours. With this on, a copy of everything
+            Messages vanish from the cloud after 30 days. With this on, a copy of everything
             you see in your chat with {peerName} — text, photos, GIFs, voice notes, reactions —
             is kept privately on this device so you can keep it as a memory. It stays only here,
             never uploaded, and only you have it.

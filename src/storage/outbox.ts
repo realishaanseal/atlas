@@ -35,7 +35,7 @@ export async function remove(id: string): Promise<void> {
   );
 }
 
-/** Drops entries whose 24h window elapsed while we were offline. */
+/** Drops entries whose retention window elapsed while we were offline. */
 export async function prune(): Promise<void> {
   const now = Date.now();
   await db.set(

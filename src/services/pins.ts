@@ -16,7 +16,7 @@ import type { Message, Pin, PinDoc, PinMediaRef, PinSnapshot } from '@/types';
  * stays in the timeline, in order, and jumpable until unpinned.
  *
  * Unpinning reverses both: delete the pin document, then restore the message
- * and its media to a normal 24h-from-creation expiry, so an old one is swept on
+ * and its media to a normal RETENTION_MS-from-creation expiry, so an old one is swept on
  * the next pass. Order matters — the pin document must exist for the message
  * rule to permit the far-future expiry, and must be gone for it to permit the
  * restore. See the message `allow update` branch in firestore.rules.
@@ -151,7 +151,7 @@ export async function keepAlive(message: Message): Promise<void> {
  *
  * Takes the message's createdAt and media ref rather than fetching them, so a
  * pin can be removed from the panel without the message being on screen. The
- * restore value is createdAt + 24h; if that is already past, the sweep collects
+ * restore value is createdAt + RETENTION_MS; if that is already past, the sweep collects
  * it next pass.
  */
 export async function unpin(input: {

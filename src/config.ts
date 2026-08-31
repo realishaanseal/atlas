@@ -16,24 +16,38 @@
  */
 export const APP_NAME = 'MechCodes';
 
-/** Message and image lifetime — also the maximum the Security Rules permit. */
-export const RETENTION_MS = 24 * 60 * 60 * 1000;
+/**
+ * Message and media lifetime — also the maximum the Security Rules permit.
+ *
+ * Raised from 24 hours to 30 days: with light day-to-day use the free-tier
+ * quotas (1 GiB stored, 20k writes/day, 50k reads/day) are nowhere near reached
+ * even keeping a month of history, and a month is far more useful to look back
+ * over than a day. The client sweep and the rules' refusal to serve expired
+ * documents are unchanged — this only moves the number.
+ *
+ * The security trade is real and worth stating: there is no forward secrecy, so
+ * anyone who captures ciphertext and later learns the passphrase can now
+ * decrypt 30 days of it rather than 1. This must match `retentionMs()` in
+ * firestore.rules.
+ */
+export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Per-message retention choices.
  *
- * Only ever SHORTER than the 24h default. The rules cap it there, so a message
- * can be made to vanish sooner but never to linger — the retention guarantee
- * still holds no matter what a client sends.
+ * Only ever SHORTER than the 30-day default. The rules cap it there, so a
+ * message can be made to vanish sooner but never to linger — the retention
+ * guarantee still holds no matter what a client sends.
  *
- * Media documents keep their own 24h expiry: they are addressed by id from
- * inside the encrypted payload, so once the message is gone there is nothing
- * left pointing at them and the ordinary sweep collects them.
+ * Media documents keep their own expiry: they are addressed by id from inside
+ * the encrypted payload, so once the message is gone there is nothing left
+ * pointing at them and the ordinary sweep collects them.
  */
 export const RETENTION_OPTIONS = [
   { label: '1 hour', ms: 60 * 60 * 1000 },
-  { label: '6 hours', ms: 6 * 60 * 60 * 1000 },
-  { label: '24 hours', ms: RETENTION_MS },
+  { label: '1 day', ms: 24 * 60 * 60 * 1000 },
+  { label: '7 days', ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: '30 days', ms: RETENTION_MS },
 ] as const;
 
 export const CRYPTO = {
@@ -153,7 +167,7 @@ export const GIF_STORAGE = {
  *
  * The cap is deliberately modest. Every chunk is a write for the sender and a
  * read for the recipient, and the free tier's daily quotas (20k writes / 50k
- * reads) are what set the ceiling — not storage, since clips are swept at 24h
+ * reads) are what set the ceiling — not storage, since clips are swept at 30 days
  * like everything else. A poster frame (first frame, canvas-encoded to WebP) is
  * captured on upload so the bubble shows a still with a play button before the
  * full clip is fetched.
@@ -215,7 +229,7 @@ export const FILES = {
  *
  * Uploaded images, referenced in messages by `:shortcode:` and usable as
  * reactions. Stored encrypted in Firestore like everything else, but in the one
- * collection that does NOT expire — a pack swept every 24 hours would be
+ * collection that does NOT expire — a pack that expired would be
  * useless.
  *
  * Static images are re-encoded to WebP through a canvas, which strips EXIF the
@@ -261,7 +275,7 @@ export const EMOJI = {
  * Pinned messages.
  *
  * Stored in a non-expiring collection like custom emoji, because a pin that
- * evaporated with its message after 24 hours would be pointless. The message's
+ * evaporated with its message would be pointless. The message's
  * displayable content is snapshotted into the pin at pin time, so it survives
  * the original being swept.
  *
@@ -281,7 +295,7 @@ export const PINS = {
    *
    * A pinned message is not copied out of the messages collection — it stays in
    * place with its expiry pushed here, so it remains in the timeline, in order,
-   * and jumpable. Unpinning restores expiresAt to createdAt + 24h, at which
+   * and jumpable. Unpinning restores expiresAt to createdAt + 30 days, at which
    * point the ordinary sweep collects it if it is already past due.
    *
    * This exact value is also hardcoded in firestore.rules; the two must agree.
@@ -292,7 +306,7 @@ export const PINS = {
 /**
  * Shared doodles drawn over the chat.
  *
- * Anchored to a message and swept on the same 24h schedule, so a doodle lives
+ * Anchored to a message and swept on the same schedule, so a doodle lives
  * exactly as long as the messages it was drawn over. Stroke data is capped so a
  * single drawing cannot bloat a document or the write it costs.
  */

@@ -1,5 +1,5 @@
 /**
- * The local chat archive — a memory that outlives Firebase's 24h sweep.
+ * The local chat archive — a memory that outlives Firebase's sweep.
  *
  * Everything the app shows is decrypted on this device before it is rendered.
  * This store captures that decrypted view into IndexedDB so it survives after

@@ -107,7 +107,7 @@ const SAFE_AUDIO_MIME = new Set([
  * Decrypts a voice clip to raw bytes.
  *
  * Exposed separately from `download` so the local archive can persist the clip
- * itself — the archive keeps the memory past the 24h sweep, so it needs the
+ * itself — the archive keeps the memory past the sweep, so it needs the
  * bytes, not a throwaway object URL. Throws once the clip has been swept.
  */
 export async function downloadBytes(

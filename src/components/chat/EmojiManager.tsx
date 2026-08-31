@@ -201,9 +201,8 @@ export function EmojiManager({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         <p className="border-t border-hairline px-4 py-2 text-[0.625rem] leading-relaxed text-muted">
-          Emoji are encrypted like everything else, but unlike messages they do not expire after
-          24 hours — a pack that vanished daily would be useless. Deleting one here removes it for
-          both of you.
+          Emoji are encrypted like everything else, but unlike messages they never expire — a
+          pack that vanished would be useless. Deleting one here removes it for both of you.
         </p>
       </div>
     </Overlay>

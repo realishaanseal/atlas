@@ -4,7 +4,7 @@ A private, end-to-end encrypted workspace for exactly two people.
 
 Messages, images, GIFs and voice notes are encrypted in the browser with
 AES-256-GCM before they touch the network. The server stores ciphertext and
-nothing else. Everything expires after 24 hours.
+nothing else. Everything expires after 30 days.
 
 ---
 

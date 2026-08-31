@@ -51,7 +51,7 @@ interface ComposerProps {
   onSendMedia: (files: File[]) => void;
   /** The + → File picker: any file type, stored opaquely. */
   onSendFiles: (files: File[]) => void;
-  /** Retention for the next message, in ms. Never longer than the 24h default. */
+  /** Retention for the next message, in ms. Never longer than the 30-day default. */
   retentionMs: number;
   onRetentionChange: (ms: number) => void;
   onSendVoice: (blob: Blob, durationMs: number, peaks: number[]) => void;
@@ -313,7 +313,7 @@ export function Composer({
   }, [replyTo]);
 
   const currentRetention =
-    RETENTION_OPTIONS.find((o) => o.ms === retentionMs)?.label ?? '24 hours';
+    RETENTION_OPTIONS.find((o) => o.ms === retentionMs)?.label ?? '30 days';
 
   const attachItems: {
     icon: typeof Camera;

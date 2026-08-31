@@ -10,9 +10,9 @@ Phase 1 decision record. Everything here is open to revision before Phase 2 begi
 
 The two are close for a workload this small, but four things decide it:
 
-**Security Rules expressiveness.** This is the big one. Firestore rules can validate the *shape* of a write — exact key sets, field types, byte lengths, and cross-document lookups. RTDB rules are JSON-path predicates and cannot express "this document must have exactly these six keys, `body.ct` must be under 8 KB, and `expiresAt` must equal `createdAt + 86400000`". Since the ciphertext is opaque to the server, shape validation is the *only* server-side integrity control available. Firestore gives us a real one.
+**Security Rules expressiveness.** This is the big one. Firestore rules can validate the *shape* of a write — exact key sets, field types, byte lengths, and cross-document lookups. RTDB rules are JSON-path predicates and cannot express "this document must have exactly these six keys, `body.ct` must be under 8 KB, and `expiresAt` must equal `createdAt + retentionMs()`". Since the ciphertext is opaque to the server, shape validation is the *only* server-side integrity control available. Firestore gives us a real one.
 
-**Native TTL.** Firestore supports a server-side TTL policy on a timestamp field, free on Spark. RTDB has no equivalent — you would need a client or a Cloud Function to delete, and Cloud Functions require the Blaze plan. Given the 24-hour retention requirement, this matters. (We still layer a client sweep on top; see §5.)
+**Native TTL.** Firestore supports a server-side TTL policy on a timestamp field, free on Spark. RTDB has no equivalent — you would need a client or a Cloud Function to delete, and Cloud Functions require the Blaze plan. Given the retention requirement, this matters. (We still layer a client sweep on top; see §5.)
 
 **Offline persistence and quota.** Firestore's `persistentLocalCache` means a reconnect resumes from a local snapshot and only pulls the delta. RTDB re-syncs more aggressively. On the Spark plan's 50k reads/day, a chatty reconnect loop is the realistic way to run out of quota, and Firestore's cache is the mitigation.
 
@@ -110,12 +110,14 @@ The Spark plan turns out to be more restrictive than the original plan assumed. 
 
 That last one was an error in the Phase 1 plan: I described native TTL as free. It isn't. There is no server-side garbage collector available on this project. So retention rests on two layers instead of three:
 
-1. **Security Rules refuse to serve expired documents.** `expiresAt` in the past → permission denied, on both `messages` and `images`. This is server-enforced, instant, and cannot be bypassed by a client. It is what makes the 24-hour guarantee real.
+1. **Security Rules refuse to serve expired documents.** `expiresAt` in the past → permission denied, on both `messages` and `images`. This is server-enforced, instant, and cannot be bypassed by a client. It is what makes the retention guarantee real.
 2. **Client-side sweep**, on connect and every 10 minutes thereafter, batch-deleting expired documents.
 
-**What this actually means, stated plainly:** if neither person opens the app for a week, expired messages remain as rows in the database for that week. They are unreadable — rules deny them, and they are AES-256-GCM ciphertext regardless — but they are not *gone*. Deletion happens the next time somebody connects.
+**Retention is 30 days**, raised from the original 24 hours (`RETENTION_MS` in config.ts, `retentionMs()` in firestore.rules — the two must agree). Day-to-day use is light enough that a month of history stays comfortably inside the free-tier quotas, and a month is far more useful to look back over. The security trade is explicit: with no forward secrecy, someone who captures ciphertext and later learns the passphrase can now decrypt 30 days of it rather than 1.
 
-For a two-person messenger that both people use daily, the sweep runs constantly and this is a non-issue. It would be a real problem for an app with dormant accounts. The failure mode is bounded by the Spark storage quota (1 GiB); at ~600 KB per image that is roughly 1,700 images of accumulated garbage before anything breaks, which a single connection clears.
+**What this actually means, stated plainly:** if neither person opens the app for a month, expired documents remain as rows in the database until someone connects. They are unreadable — rules deny them, and they are AES-256-GCM ciphertext regardless — but they are not *gone* until the next sweep.
+
+The failure mode is bounded by the Spark storage quota (1 GiB); at ~600 KB per image that is roughly 1,700 images of accumulated garbage before writes start being refused — and Spark blocks rather than bills, so the worst case is the app declining new media until the sweep catches up, never a charge.
 
 If genuine server-side expiry becomes important, the options are Blaze (native TTL costs nothing at this volume — you'd pay only for what exceeds the free allowances, which two users never would) or an external free-tier cron hitting a cleanup endpoint. Neither is worth doing now.
 

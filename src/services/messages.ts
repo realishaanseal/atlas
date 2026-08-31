@@ -384,7 +384,7 @@ export interface PendingSend {
 export async function prepare(
   key: CryptoKey,
   payload: MessagePayload,
-  /** Lifetime for this message. Clamped to the 24h ceiling the rules enforce. */
+  /** Lifetime for this message. Clamped to the 30-day ceiling the rules enforce. */
   retentionMs: number = RETENTION_MS,
 ): Promise<PendingSend> {
   const createdAt = Date.now();
@@ -453,7 +453,7 @@ export interface MessageStream {
  *
  * Ordering by expiresAt rather than createdAt is deliberate: Firestore
  * requires the first orderBy to match the inequality field, and since
- * expiresAt is always createdAt + 24h the two orderings are identical.
+ * expiresAt is always createdAt + RETENTION_MS the two orderings are identical.
  */
 export function subscribe(
   key: CryptoKey,

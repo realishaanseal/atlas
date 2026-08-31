@@ -80,10 +80,10 @@ export function usePins(key: CryptoKey) {
       if (cancelled) return;
       setPinnedMessages(fetched);
 
-      // Self-heal: any pinned message still on its original 24h expiry (its
-      // extension failed, or it was pinned before the rules allowing it went
-      // live) gets re-extended now, while it is still alive. Already-extended
-      // ones are skipped, so this normally does no writes.
+      // Self-heal: any pinned message still on its normal expiry (its extension
+      // failed, or it was pinned before the rules allowing it went live) gets
+      // re-extended now, while it is still alive. Already-extended ones are
+      // skipped, so this normally does no writes.
       for (const message of fetched) {
         if (message.expiresAt < PINS.KEEP_UNTIL) {
           void pins.keepAlive(message).catch(() => {
