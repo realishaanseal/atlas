@@ -242,8 +242,21 @@ const SESSION_OFFSET = Math.floor(Math.random() * CREATIVES.length);
 function pick(seed: string): Creative {
   let hash = 0;
   for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return CREATIVES[(Math.abs(hash) + SESSION_OFFSET) % CREATIVES.length] ?? CREATIVES[0]!;
+  const index = (Math.abs(hash) + SESSION_OFFSET) % CREATIVES.length;
+  return CREATIVES[index] ?? FALLBACK_CREATIVE;
 }
+
+/** Satisfies the return type when the modulo index somehow does not resolve. */
+const FALLBACK_CREATIVE: Creative = CREATIVES[0] ?? {
+  brand: '',
+  domain: '',
+  headline: '',
+  sub: '',
+  cta: '',
+  href: '#',
+  accent: '#000000',
+  onAccent: '#ffffff',
+};
 
 /**
  * The AdChoices marker: a small blue triangle with an arrow, top right.
@@ -380,7 +393,10 @@ function Banner({
 
 function TextBlock() {
   const start = SESSION_OFFSET % TEXT_ADS.length;
-  const items = [0, 1, 2].map((offset) => TEXT_ADS[(start + offset) % TEXT_ADS.length]!);
+  const items = [0, 1, 2].flatMap((offset) => {
+    const ad = TEXT_ADS[(start + offset) % TEXT_ADS.length];
+    return ad ? [ad] : [];
+  });
 
   return (
     <div className="relative rounded-sm border border-[#dadce0] bg-white p-4">

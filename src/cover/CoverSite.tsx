@@ -10,6 +10,7 @@ import {
   TierListPage,
 } from './CoverPages';
 import { A, CookieBar, Sidebar, SiteFooter } from './Chrome';
+import { scanReveals } from './reveal';
 import type { SessionReason, SessionStatus } from '@/hooks/useSession';
 import './cover.css';
 
@@ -136,6 +137,14 @@ export default function CoverSite({
     document.title = TITLES[route];
   }, [route]);
 
+  // Pick up any `.cv-reveal` the new route just mounted.
+  useEffect(() => {
+    const id = requestAnimationFrame(scanReveals);
+    return () => {
+      cancelAnimationFrame(id);
+    };
+  }, [route]);
+
   const go = useCallback((href: string) => {
     // Fragment links stay on the page; the browser handles the scroll.
     if (href.startsWith('#')) return;
@@ -231,10 +240,11 @@ function Shell({
                 key={item.href}
                 href={item.href}
                 go={go}
+                data-active={route === item.route}
                 className={
                   route === item.route
-                    ? 'font-semibold text-[#f59e0b]'
-                    : 'text-[#9aa4b4] transition-colors hover:text-[#e8eaed]'
+                    ? 'cv-navlink font-semibold text-[#f59e0b]'
+                    : 'cv-navlink text-[#9aa4b4] transition-colors hover:text-[#e8eaed]'
                 }
               >
                 {item.label}
@@ -273,7 +283,9 @@ function Shell({
 
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-7 sm:px-8">
         <div className="flex flex-col gap-10 lg:flex-row xl:gap-14">
-          <main className="min-w-0 flex-1">{children}</main>
+          <main key={route} className="cv-page min-w-0 flex-1">
+            {children}
+          </main>
           <Sidebar go={go} />
         </div>
       </div>

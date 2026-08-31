@@ -59,10 +59,12 @@ const AVATAR_COLOURS = [
   'bg-[#33241f] text-[#e08a6a]',
 ];
 
+const AVATAR_FALLBACK = 'bg-[#232630] text-[#9aa4b4]';
+
 function avatarClass(name: string): string {
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return AVATAR_COLOURS[Math.abs(hash) % AVATAR_COLOURS.length] ?? AVATAR_COLOURS[0]!;
+  return AVATAR_COLOURS[Math.abs(hash) % AVATAR_COLOURS.length] ?? AVATAR_FALLBACK;
 }
 
 /**
@@ -131,7 +133,7 @@ export function CommentBox({ status, reason, onSubmit }: CommentBoxProps) {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: { preventDefault: () => void }) => {
     event.preventDefault();
     const body = text.trim();
     if (body.length === 0 || busy) return;
@@ -215,7 +217,9 @@ export function CommentBox({ status, reason, onSubmit }: CommentBoxProps) {
       </div>
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
         className="mt-4 rounded-md border border-[#232a36] bg-[#10141b] p-4"
       >
         <label htmlFor={nameId} className="sr-only">

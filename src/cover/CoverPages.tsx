@@ -45,7 +45,10 @@ type Go = (href: string) => void;
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} className="mt-9 scroll-mt-20 text-xl font-bold tracking-tight text-[#e8eaed]">
+    <h2
+      id={id}
+      className="cv-reveal mt-9 scroll-mt-20 text-xl font-bold tracking-tight text-[#e8eaed]"
+    >
       {children}
     </h2>
   );
@@ -151,15 +154,16 @@ function TierTable({ tiers }: { tiers: readonly Tier[] }) {
 function RelatedGuides({ go, exclude }: { go: Go; exclude?: string }) {
   const items = GUIDES.filter((guide) => guide.href !== exclude);
   return (
-    <section className="mt-10 border-t border-[#1e2530] pt-6">
+    <section className="cv-reveal mt-10 border-t border-[#1e2530] pt-6">
       <h2 className="text-base font-bold text-[#e8eaed]">More Mech Arena guides</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {items.map((guide) => (
+        {items.map((guide, i) => (
           <A
             key={guide.href}
             href={guide.href}
             go={go}
-            className="rounded-md border border-[#232a36] bg-[#10141b] p-4 transition-colors hover:border-[#3a4453]"
+            style={{ '--cv-delay': `${String(i * 60)}ms` } as React.CSSProperties}
+            className="cv-card cv-reveal rounded-md border border-[#232a36] bg-[#10141b] p-4"
           >
             <p className="text-sm font-semibold leading-snug text-[#cdd3dd]">{guide.title}</p>
             <p className="mt-1.5 text-xs leading-relaxed text-[#6b7484]">{guide.blurb}</p>

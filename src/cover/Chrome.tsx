@@ -17,12 +17,13 @@ export function A({
   go,
   children,
   className,
+  ...rest
 }: {
   href: string;
   go: (href: string) => void;
   children: React.ReactNode;
   className?: string;
-}) {
+} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick' | 'className'>) {
   return (
     <a
       href={href}
@@ -32,6 +33,7 @@ export function A({
         go(href);
       }}
       className={className}
+      {...rest}
     >
       {children}
     </a>
