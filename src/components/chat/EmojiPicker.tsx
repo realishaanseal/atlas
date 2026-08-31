@@ -97,7 +97,7 @@ export function EmojiPicker({
         // Near-opaque, not glass: this panel is a dense grid of glyphs and
         // sits over message bubbles. At normal glass opacity the content
         // behind reads through it as ghosting.
-        'border border-hairline bg-surface/97 shadow-lift backdrop-blur-xl',
+        'border border-hairline bg-surface/95 shadow-raised backdrop-blur-xl',
         // Opens UPWARD by default. Every anchor for this picker — the composer
         // and the reaction bar — sits near the bottom of the screen, so
         // downward is off-screen. Callers can override via className.
