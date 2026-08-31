@@ -107,14 +107,16 @@ export function backgroundVars(hex: string): ThemeVars {
   const tint = Math.min(c, 0.045);
   const ok = (l: number, ch: number) => `oklch(${l.toFixed(3)} ${ch.toFixed(3)} ${h.toFixed(1)})`;
 
+  // Lightness ladder matched to the redesign's native palette — a wider gap up
+  // to the first surface, clear steps after, so elevation reads on any tint.
   return {
-    '--color-bg': ok(0.1, tint),
-    '--color-bg-deep': ok(0.06, tint),
-    '--color-surface': ok(0.16, tint),
-    '--color-surface-raised': ok(0.2, tint),
-    '--color-surface-glass': ok(0.18, tint),
-    '--color-border': ok(0.3, tint * 1.3),
-    '--color-border-strong': ok(0.4, tint * 1.3),
+    '--color-bg': ok(0.13, tint),
+    '--color-bg-deep': ok(0.08, tint),
+    '--color-surface': ok(0.2, tint),
+    '--color-surface-raised': ok(0.26, tint),
+    '--color-surface-glass': ok(0.22, tint),
+    '--color-border': ok(0.32, tint * 1.3),
+    '--color-border-strong': ok(0.42, tint * 1.3),
   };
 }
 

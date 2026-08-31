@@ -16,35 +16,36 @@
 --------------------------------------------------------------------------- */
 
 @theme {
-  /* Base. The redesign pulls back from the old blue-black to a deep, nearly
-     neutral graphite with only a trace of cool cast — so the accent does the
-     colour work and the surfaces read as a lit material rather than a tint. */
-  --color-bg: #0b0c10;
-  --color-bg-deep: #06070a;
+  /* Base. A deep, slightly cool graphite — dark enough that the ambient field
+     and the accent do the colour work, with a wider gap up to the first
+     surface so elevation reads at a glance. */
+  --color-bg: #080910;
+  --color-bg-deep: #040509;
 
-  /* A true elevation ladder: every step is lighter than the last and is meant
-     to sit visibly above it. Rendered translucent (see .glass) these pick up
-     the ambient field behind them, which is what gives the depth. */
-  --color-surface: #14161d;
-  --color-surface-raised: #1c1f29;
-  --color-surface-glass: #161922;
+  /* A true elevation ladder with visible gaps: bg → surface is a ~3.3× jump in
+     luminance, surface → raised another ~2×. Rendered translucent (see .glass)
+     these pick up the ambient field behind them, which is what gives depth. */
+  --color-surface: #151824;
+  --color-surface-raised: #212533;
+  --color-surface-glass: #161b2b;
 
-  /* Solid border tokens, kept quiet. Most raised surfaces in the redesign use
-     the white-alpha hairline below instead — an edge catching light reads as
-     more physical than a drawn outline on a dark UI. */
-  --color-border: #272b37;
-  --color-border-strong: #3a3f4f;
+  /* Solid border tokens, kept quiet. Most raised surfaces use the white-alpha
+     hairline below instead — an edge catching light reads as more physical
+     than a drawn outline on a dark UI. */
+  --color-border: #2a2f3f;
+  --color-border-strong: #3e4457;
 
   /* Hairline + inner-light treatment for "material" edges: a raised panel takes
-     border-hairline all round and shadow-edge along its top. */
-  --color-hairline: rgb(255 255 255 / 0.07);
-  --color-hairline-strong: rgb(255 255 255 / 0.12);
+     border-hairline all round and shadow-edge along its top. Pushed up so the
+     lit top edge actually reads. */
+  --color-hairline: rgb(255 255 255 / 0.09);
+  --color-hairline-strong: rgb(255 255 255 / 0.16);
 
-  /* Accent for icons, focus rings, borders on the dark background. Softened a
-     shade from the old #4d94ff — 7.2:1 on the base, 6.6:1 on surface. */
-  --color-accent: #5c9dff;
-  --color-accent-hover: #7ab0ff;
-  --color-accent-muted: #1e3a63;
+  /* Accent for icons, focus rings, borders on the dark background — a luminous
+     blue. 7.6:1 on the base, 6.8:1 on surface. */
+  --color-accent: #5aa2ff;
+  --color-accent-hover: #7cb5ff;
+  --color-accent-muted: #1e3d6e;
 
   /* Accent used *behind white text* — sent bubbles, primary buttons.
      The brief's #3B82F6 gives white only 3.68:1 and fails at body size.
@@ -61,20 +62,20 @@
   --color-accent-solid-deep: #2456b8; /* 6.78:1 on white — bottom stop */
   --color-accent-solid-hover: #2c68d6; /* 5.17:1 on white */
 
-  /* Second hue for the gradient, so the ambient light has somewhere to travel
-     to. A single blue radial reads as a spotlight; two hues read as depth. */
-  --color-accent-alt: #6d5cf5;
+  /* Second hue for gradients and the ambient field — a saturated indigo-violet
+     the blue can travel to. Two hues read as depth; one reads as a spotlight. */
+  --color-accent-alt: #7d6cff;
 
   /* Ambient glow colours, referenced by the body background and the glow
-     shadows. Named separately from the accents so a theme can retint the whole
-     ambient field by overriding just these two on :root. Defaults match the
-     original hardcoded blues, so the untouched app looks identical. */
-  --glow-a: #2f6fe0;
-  --glow-b: #6d5cf5;
+     shadows. Named separately so a theme can retint the whole ambient field by
+     overriding just these two on :root. Brighter and more saturated than the
+     accents — this is the light source, it is allowed to be vivid. */
+  --glow-a: #3b7bf0;
+  --glow-b: #7d6cff;
 
-  --color-text: #f4f6fb;
-  --color-secondary: #aab4c6; /* 8.6:1 on surface */
-  --color-muted: #8b95a9; /* 6.0:1 on surface, 5.5:1 on raised — AA at body size */
+  --color-text: #f5f7fd;
+  --color-secondary: #adb7cc; /* 8.8:1 on surface */
+  --color-muted: #8c96ac; /* 5.9:1 on surface, 5.1:1 on raised — AA at body size */
 
   --color-danger: #ff5a5a;
   --color-success: #34d399;
@@ -101,29 +102,29 @@
      as light catching a physical lip. The tint is a near-black with a trace of
      cool, matching --color-bg-deep — a pure-black shadow on a dark UI looks
      like a hole punched in it, a tinted one looks like distance. */
-  --shadow-contact: 0 1px 2px rgb(3 4 9 / 0.5), 0 1px 1px rgb(3 4 9 / 0.35);
-  --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.06);
+  --shadow-contact: 0 1px 2px rgb(2 3 8 / 0.55), 0 1px 1px rgb(2 3 8 / 0.4);
+  --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.1);
 
   --shadow-soft:
-    0 1px 2px rgb(3 4 9 / 0.45),
-    0 6px 18px -8px rgb(3 4 9 / 0.5);
+    0 1px 2px rgb(2 3 8 / 0.5),
+    0 8px 24px -8px rgb(2 3 8 / 0.6);
   --shadow-lift:
-    0 1px 2px rgb(3 4 9 / 0.5),
-    0 12px 30px -10px rgb(3 4 9 / 0.55),
-    0 36px 64px -32px rgb(3 4 9 / 0.5);
+    0 1px 2px rgb(2 3 8 / 0.55),
+    0 16px 40px -12px rgb(2 3 8 / 0.65),
+    0 44px 80px -36px rgb(2 3 8 / 0.6);
   --shadow-raised:
-    0 2px 6px -2px rgb(3 4 9 / 0.5),
-    0 22px 50px -18px rgb(3 4 9 / 0.6),
+    0 2px 8px -2px rgb(2 3 8 / 0.55),
+    0 30px 64px -20px rgb(2 3 8 / 0.7),
     var(--shadow-edge);
 
   --shadow-glow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.14),
-    0 4px 18px -4px color-mix(in oklab, var(--glow-a) 42%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--color-accent) 20%, transparent);
-  --shadow-glow-strong:
     inset 0 1px 0 0 rgb(255 255 255 / 0.18),
-    0 8px 28px -6px color-mix(in oklab, var(--glow-a) 58%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--color-accent) 32%, transparent);
+    0 6px 24px -4px color-mix(in oklab, var(--glow-a) 55%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 28%, transparent);
+  --shadow-glow-strong:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.24),
+    0 10px 40px -6px color-mix(in oklab, var(--glow-a) 72%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 42%, transparent);
 
   /* Motion. `soft` for most things; `spring` overshoots slightly and is what
      makes a button press feel physical rather than merely animated.
@@ -183,62 +184,72 @@
     overscroll-behavior-y: none;
     overflow: hidden;
 
-    /* The ambient field.
-       Four radial gradients over a vertical base, all fixed so they behave as
-       a light source the content moves against rather than wallpaper that
-       scrolls with it. Painted once by the compositor; no runtime cost.
-
-       The redesign turns these down: roughly two thirds of the old intensity,
-       so the field reads as a room the material sits in rather than a backlit
-       screen. The depth now comes from the surfaces and their shadows. */
+    /* The ambient field, layer 1 — a fixed vertical base plus two static
+       corner glows, painted by the compositor at no runtime cost. The moving
+       part lives in body::after. */
     background-color: var(--color-bg);
     background-image:
       radial-gradient(
-        ellipse 92% 66% at 12% -16%,
-        color-mix(in oklab, var(--glow-a) 18%, transparent) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse 76% 54% at 88% -6%,
-        color-mix(in oklab, var(--glow-b) 14%, transparent) 0%,
-        transparent 55%
-      ),
-      radial-gradient(
-        ellipse 100% 62% at 50% 113%,
-        color-mix(in oklab, var(--glow-a) 12%, transparent) 0%,
+        ellipse 110% 80% at 8% -20%,
+        color-mix(in oklab, var(--glow-a) 32%, transparent) 0%,
         transparent 62%
       ),
       radial-gradient(
-        ellipse 56% 44% at 92% 78%,
-        color-mix(in oklab, var(--glow-b) 8%, transparent) 0%,
+        ellipse 90% 65% at 95% 108%,
+        color-mix(in oklab, var(--glow-b) 26%, transparent) 0%,
         transparent 60%
       ),
       linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
     background-attachment: fixed;
   }
 
-  /* A faint film of grain over the ambient field. One tiling SVG turbulence,
-     fixed to the viewport and painted by the compositor, at an opacity where
-     you feel it rather than see it — it keeps the large dark gradients from
-     banding and gives flat surfaces something to catch. It sits above the body
-     background and below #root, so it textures the field the content moves
-     against, never the text. Removed for anyone on reduced motion? No — it does
-     not move; it stays. */
+  /* The ambient field, layer 2 — two big blurred blobs that drift very slowly,
+     so a "solid" dark screen is quietly alive. Transform-only, so it is
+     compositor-cheap and the reduced-motion rule freezes it in place. Rendered
+     before body::after (the grain), so the grain sits over it; both are below
+     #root, which has its own z-index. */
   body::before {
+    content: '';
+    position: fixed;
+    inset: -25%;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(
+        ellipse 42% 42% at 24% 22%,
+        color-mix(in oklab, var(--glow-a) 42%, transparent) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 48% 48% at 80% 74%,
+        color-mix(in oklab, var(--glow-b) 34%, transparent) 0%,
+        transparent 70%
+      );
+    filter: blur(44px);
+    animation: ambient-drift 48s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  /* A faint film of grain over the ambient field. One tiling SVG turbulence at
+     an opacity where you feel it rather than see it — it keeps the large dark
+     gradients from banding and gives flat surfaces something to catch. It does
+     not move; reduced motion leaves it. */
+  body::after {
     content: '';
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.035;
+    opacity: 0.05;
     background-repeat: repeat;
-    background-size: 128px 128px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 130px 130px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* The public content page opts out of the grain, the same way it drops the
-     ambient gradients (see cover.css). */
-  html.cover body::before {
+  /* The public content page opts out of both ambient layers — the drifting
+     glow and the grain — the same way it drops the base gradients (cover.css). */
+  html.cover body::before,
+  html.cover body::after {
     display: none;
   }
 
@@ -367,12 +378,13 @@
 
   /* Frosted panel. The saturate() is the part people can't name but can see —
      it stops backdrop blur from washing the colour out of what's behind it.
-     The redesign takes it a shade more transparent and blurs harder, so a panel
-     reads as a pane of glass with the ambient field alive behind it. */
+     Transparent enough and blurred hard enough that a panel reads as a real
+     pane of glass with the ambient field moving behind it, plus a hairline top
+     highlight so the edge catches light. */
   .glass {
-    background-color: color-mix(in srgb, var(--color-surface-glass) 66%, transparent);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    background-color: color-mix(in srgb, var(--color-surface-glass) 58%, transparent);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
   }
 
   /* The standard "raised material" treatment: contact + ambient shadow plus a
@@ -585,11 +597,11 @@
      state for the moment between the animation ending and React unmounting it,
      or it would flash back to full opacity. */
   .animate-veil-out {
-    animation: veil-out 520ms var(--ease-soft) forwards;
+    animation: veil-out 620ms var(--ease-soft) forwards;
   }
 
   .animate-app-in {
-    animation: app-in 620ms var(--ease-soft) backwards;
+    animation: app-in 820ms var(--ease-soft) backwards;
   }
 }
 
@@ -814,30 +826,30 @@
     transform: scale(1);
     filter: blur(0px);
   }
-  35% {
+  30% {
     /* A breath inward first — the wind-up before it lets go. */
-    transform: scale(0.97);
+    transform: scale(0.955);
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: scale(1.35);
-    filter: blur(12px);
+    transform: scale(1.6);
+    filter: blur(20px);
   }
 }
 
 @keyframes app-in {
   0% {
     opacity: 0;
-    transform: scale(0.96);
-    filter: blur(6px);
+    transform: scale(0.9) translateY(10px);
+    filter: blur(10px);
   }
-  60% {
+  55% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
     filter: blur(0px);
   }
 }
@@ -851,5 +863,18 @@
   }
   100% {
     box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+/* The slow wander of the ambient glow layer (body::before). Transform only. */
+@keyframes ambient-drift {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, 4%, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(5%, -1%, 0) scale(1.04);
   }
 }

@@ -21,7 +21,7 @@ import { cn } from '@/utils/cn';
 const ChatRoot = lazy(() => import('@/pages/ChatRoot'));
 
 /** Must match the `veil-out` animation duration in styles/index.css. */
-const UNLOCK_EXIT_MS = 520;
+const UNLOCK_EXIT_MS = 620;
 
 export default function App() {
   const { status, slot, uid, reason, submit, detect, lock, keyRef } = useSession();

@@ -253,6 +253,15 @@ function Preview() {
 }
 
 export function mountPreview(container: HTMLElement) {
+  // `?reduce` also forces the reduced-motion media query so useReducedMotion()
+  // picks it up, not just MotionConfig.
+  if (new URLSearchParams(window.location.search).has('reduce')) {
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = (q: string) =>
+      q.includes('prefers-reduced-motion')
+        ? ({ matches: true, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false } as MediaQueryList)
+        : real(q);
+  }
   createRoot(container).render(
     <StrictMode>
       <Preview />

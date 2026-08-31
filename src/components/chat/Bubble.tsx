@@ -385,10 +385,10 @@ export function Bubble({
     // at once. Reduced motion drops it to a plain fade.
     <m.div
       id={`msg-${message.id}`}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12, x: mine ? 18 : -18, scale: 0.96 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20, x: mine ? 32 : -32, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, transition: { duration: 0.16 } }}
-      transition={springs.gentle}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.85, transition: { duration: 0.16 } }}
+      transition={springs.overshoot}
       className={cn(
         'group relative flex w-full items-center scroll-mt-20',
         mine ? 'justify-end' : 'justify-start',
