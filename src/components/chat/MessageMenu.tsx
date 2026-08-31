@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { m } from 'motion/react';
 import { Copy, Check, Pin, PinOff, Pencil } from 'lucide-react';
+import { popover } from '@/motion/variants';
 import { cn } from '@/utils/cn';
 
 interface MessageMenuProps {
@@ -58,12 +60,17 @@ export function MessageMenu({
     'transition-colors duration-150 hover:bg-surface hover:text-text';
 
   return (
-    <div
+    <m.div
       ref={rootRef}
       role="menu"
+      variants={popover}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      style={{ transformOrigin: mine ? 'bottom right' : 'bottom left' }}
       className={cn(
-        'glass animate-scale-in stagger absolute bottom-full z-40 mb-1 min-w-[10rem] overflow-hidden',
-        'rounded-md border border-hairline py-1 shadow-lift',
+        'glass absolute bottom-full z-40 mb-1 min-w-[10rem] overflow-hidden',
+        'rounded-md border border-hairline py-1 depth-lg',
         mine ? 'right-0' : 'left-0',
       )}
     >
@@ -115,6 +122,6 @@ export function MessageMenu({
           Edit
         </button>
       )}
-    </div>
+    </m.div>
   );
 }

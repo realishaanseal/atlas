@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Archive, Download, HardDrive, Trash2, X } from 'lucide-react';
 import type { ArchiveStats } from '@/services/archive';
+import { Overlay } from '@/components/ui/Overlay';
 import { cn } from '@/utils/cn';
 
 interface ArchiveManagerProps {
+  open: boolean;
   enabled: boolean;
   stats: ArchiveStats | null;
   exporting: boolean;
@@ -23,6 +24,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function ArchiveManager({
+  open,
   enabled,
   stats,
   exporting,
@@ -45,21 +47,9 @@ export function ArchiveManager({
 
   const hasMessages = (stats?.messageCount ?? 0) > 0;
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Chat archive"
-      className="fixed inset-0 z-50 flex items-center justify-center animate-backdrop bg-bg-deep/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in w-[min(27rem,92vw)] overflow-hidden rounded-lg border border-hairline
-                   bg-surface shadow-lift"
-      >
+  return (
+    <Overlay open={open} onClose={onClose} label="Chat archive" size="w-[min(27rem,92vw)]">
+      <div>
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-text">
             <Archive size={15} className="text-accent" aria-hidden />
@@ -191,7 +181,6 @@ export function ArchiveManager({
             ))}
         </div>
       </div>
-    </div>,
-    document.body,
+    </Overlay>
   );
 }

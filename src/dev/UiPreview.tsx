@@ -10,10 +10,13 @@
  * `/?preview&still`   a static "still life" of the material treatments, for
  *                     screenshots in environments where the rAF loop is frozen
  */
-import { StrictMode, useState } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Bell, Palette, Search, Sparkles, X, Zap } from 'lucide-react';
 import { MotionProvider } from '@/motion/config';
+import { ThemeProvider } from '@/hooks/useTheme';
+import { CustomEmojiProvider } from '@/hooks/useCustomEmoji';
+import { MentionNamesProvider } from '@/hooks/useMentionNames';
 import { Header } from '@/components/layout/Header';
 import { NotificationSettingsModal } from '@/components/settings/NotificationSettingsModal';
 import { Overlay } from '@/components/ui/Overlay';
@@ -211,9 +214,42 @@ function Interactive() {
   );
 }
 
+/** A throwaway key so CustomEmojiProvider has something to hold; it never
+ *  decrypts a real pack in the harness. */
+function useFakeKey() {
+  const [key, setKey] = useState<CryptoKey | null>(null);
+  useEffect(() => {
+    void crypto.subtle
+      .generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+      .then(setKey);
+  }, []);
+  return key;
+}
+
 function Preview() {
   const still = new URLSearchParams(window.location.search).has('still');
-  return <MotionProvider>{still ? <StillLife /> : <Interactive />}</MotionProvider>;
+  const key = useFakeKey();
+  if (still) {
+    return (
+      <MotionProvider>
+        <ThemeProvider>
+          <StillLife />
+        </ThemeProvider>
+      </MotionProvider>
+    );
+  }
+  if (!key) return null;
+  return (
+    <MotionProvider>
+      <ThemeProvider>
+        <CustomEmojiProvider cryptoKey={key}>
+          <MentionNamesProvider mySlot="a" peerName="Alex">
+            <Interactive />
+          </MentionNamesProvider>
+        </CustomEmojiProvider>
+      </ThemeProvider>
+    </MotionProvider>
+  );
 }
 
 export function mountPreview(container: HTMLElement) {

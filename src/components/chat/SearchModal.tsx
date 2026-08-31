@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { maskSpoilers } from '@/utils/spoiler';
 import { resolveMentionsPlain } from '@/utils/mention';
+import { Overlay } from '@/components/ui/Overlay';
 import { cn } from '@/utils/cn';
 import type { Message, ParticipantId } from '@/types';
 
 interface SearchModalProps {
+  open: boolean;
   messages: Message[];
   mySlot: ParticipantId;
   peerName: string;
@@ -26,20 +27,16 @@ const SNIPPET_PAD = 40;
  * plus pinned messages), not the whole history, because anything older has
  * been swept from the server.
  */
-export function SearchModal({ messages, mySlot, peerName, onJump, onClose }: SearchModalProps) {
+export function SearchModal({
+  open,
+  messages,
+  mySlot,
+  peerName,
+  onJump,
+  onClose,
+}: SearchModalProps) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -77,22 +74,16 @@ export function SearchModal({ messages, mySlot, peerName, onJump, onClose }: Sea
 
   const needle = query.trim();
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Search messages"
-      className="animate-backdrop fixed inset-0 z-50 flex items-start justify-center bg-bg-deep/80
-                 p-4 pt-[10vh] backdrop-blur-sm"
-      onClick={onClose}
+  return (
+    <Overlay
+      open={open}
+      onClose={onClose}
+      label="Search messages"
+      align="top"
+      size="flex max-h-[70vh] w-[min(34rem,94vw)] flex-col"
+      initialFocus={inputRef}
     >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in flex max-h-[70vh] w-[min(34rem,94vw)] flex-col overflow-hidden
-                   rounded-lg border border-hairline bg-surface shadow-lift"
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
           <Search size={16} className="shrink-0 text-muted" aria-hidden />
           <input
@@ -170,7 +161,6 @@ export function SearchModal({ messages, mySlot, peerName, onJump, onClose }: Sea
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </Overlay>
   );
 }

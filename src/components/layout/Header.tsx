@@ -102,13 +102,8 @@ export function Header({
   useBackClose(pinsOpen, () => {
     setPinsOpen(false);
   });
-  useBackClose(emojiManagerOpen, () => {
-    setEmojiManagerOpen(false);
-  });
-  useBackClose(themeManagerOpen, () => {
-    setThemeManagerOpen(false);
-  });
-  // notifModalOpen's back handling lives in <Overlay>.
+  // emojiManager / themeManager / notifModal / pairDevice back handling all
+  // live in their <Overlay>.
   useBackClose(editing, () => {
     setEditing(false);
   });
@@ -382,29 +377,26 @@ export function Header({
         </div>
       </div>
 
-      {pairOpen && (
-        <PairDeviceModal
-          onClose={() => {
-            setPairOpen(false);
-          }}
-        />
-      )}
+      <PairDeviceModal
+        open={pairOpen}
+        onClose={() => {
+          setPairOpen(false);
+        }}
+      />
 
-      {emojiManagerOpen && (
-        <EmojiManager
-          onClose={() => {
-            setEmojiManagerOpen(false);
-          }}
-        />
-      )}
+      <EmojiManager
+        open={emojiManagerOpen}
+        onClose={() => {
+          setEmojiManagerOpen(false);
+        }}
+      />
 
-      {themeManagerOpen && (
-        <ThemeManager
-          onClose={() => {
-            setThemeManagerOpen(false);
-          }}
-        />
-      )}
+      <ThemeManager
+        open={themeManagerOpen}
+        onClose={() => {
+          setThemeManagerOpen(false);
+        }}
+      />
 
       <NotificationSettingsModal
         open={notifModalOpen}

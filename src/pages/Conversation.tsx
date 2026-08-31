@@ -169,13 +169,8 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
   useBackClose(scribbleOpen, () => {
     setScribbleOpen(false);
   });
-  useBackClose(searchOpen, () => {
-    setSearchOpen(false);
-  });
-  useBackClose(archiveOpen, () => {
-    setArchiveOpen(false);
-  });
-  // bulkReactOpen's back handling lives in <Overlay>.
+  // searchOpen's back handling lives in <Overlay>.
+  // archiveOpen + bulkReactOpen back handling lives in <Overlay>.
   useBackClose(replyTo !== null, () => {
     setReplyTo(null);
   });
@@ -873,17 +868,16 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         />
       )}
 
-      {searchOpen && (
-        <SearchModal
-          messages={deliveredMessages}
-          mySlot={slot}
-          peerName={peerName.name}
-          onJump={jumpToMessage}
-          onClose={() => {
-            setSearchOpen(false);
-          }}
-        />
-      )}
+      <SearchModal
+        open={searchOpen}
+        messages={deliveredMessages}
+        mySlot={slot}
+        peerName={peerName.name}
+        onJump={jumpToMessage}
+        onClose={() => {
+          setSearchOpen(false);
+        }}
+      />
 
       <BulkReactionsModal
         open={bulkReactOpen}
@@ -896,22 +890,21 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         }}
       />
 
-      {archiveOpen && archive.isArchivist && (
-        <ArchiveManager
-          enabled={archive.enabled}
-          stats={archive.stats}
-          exporting={archive.exporting}
-          peerName={peerName.name}
-          onToggle={archive.toggle}
-          onExport={() => {
-            archive.exportNow(peerName.name);
-          }}
-          onClear={archive.clear}
-          onClose={() => {
-            setArchiveOpen(false);
-          }}
-        />
-      )}
+      <ArchiveManager
+        open={archiveOpen && archive.isArchivist}
+        enabled={archive.enabled}
+        stats={archive.stats}
+        exporting={archive.exporting}
+        peerName={peerName.name}
+        onToggle={archive.toggle}
+        onExport={() => {
+          archive.exportNow(peerName.name);
+        }}
+        onClear={archive.clear}
+        onClose={() => {
+          setArchiveOpen(false);
+        }}
+      />
 
       <CallScreen
         phase={call.phase}

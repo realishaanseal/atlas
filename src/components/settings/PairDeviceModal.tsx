@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Loader2, MonitorSmartphone, X } from 'lucide-react';
-import { useBackClose } from '@/hooks/useBackGuard';
+import { Overlay } from '@/components/ui/Overlay';
 
 interface PairDeviceModalProps {
+  open: boolean;
   onClose: () => void;
 }
 
@@ -29,12 +29,10 @@ const WINDOW_MS = 5 * 60 * 1000;
  * passphrase alone gets somebody onto YOUR side of the conversation, so it
  * matters that it visibly closes rather than quietly lapsing.
  */
-export function PairDeviceModal({ onClose }: PairDeviceModalProps) {
+export function PairDeviceModal({ open: isOpen, onClose }: PairDeviceModalProps) {
   const [state, setState] = useState<'idle' | 'opening' | 'open' | 'error'>('idle');
   const [endsAt, setEndsAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
-
-  useBackClose(true, onClose);
 
   useEffect(() => {
     if (state !== 'open') return;
@@ -68,21 +66,9 @@ export function PairDeviceModal({ onClose }: PairDeviceModalProps) {
     Math.floor((remaining % 60000) / 1000),
   ).padStart(2, '0')}`;
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add a device"
-      className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in w-[min(26rem,94vw)] overflow-hidden rounded-lg border border-hairline
-                   bg-surface shadow-lift"
-      >
+  return (
+    <Overlay open={isOpen} onClose={onClose} label="Add a device" size="w-[min(26rem,94vw)]">
+      <div>
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-text">
             <MonitorSmartphone size={15} className="text-accent" aria-hidden />
@@ -162,7 +148,6 @@ export function PairDeviceModal({ onClose }: PairDeviceModalProps) {
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </Overlay>
   );
 }

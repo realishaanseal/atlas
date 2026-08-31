@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
-import { createPortal } from 'react-dom';
 import { EMOJI } from '@/config';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
 import { normaliseName } from '@/services/emojis';
+import { Overlay } from '@/components/ui/Overlay';
 import { cn } from '@/utils/cn';
 
 /**
@@ -15,7 +15,7 @@ import { cn } from '@/utils/cn';
  * centred overlay nested inside it would be centred on that panel rather than
  * on the viewport. This is the same trap the fullscreen image viewer hit.
  */
-export function EmojiManager({ onClose }: { onClose: () => void }) {
+export function EmojiManager({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { emojis, add, remove, loading } = useCustomEmoji();
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
@@ -52,22 +52,14 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Custom emoji"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/80 p-4
-                 backdrop-blur-sm"
-      onClick={onClose}
+  return (
+    <Overlay
+      open={open}
+      onClose={onClose}
+      label="Custom emoji"
+      size="flex max-h-[80vh] w-[min(30rem,92vw)] flex-col"
     >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
-                   rounded-lg border border-hairline bg-surface shadow-lift"
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <div>
             <h2 className="text-sm font-medium text-text">Custom emoji</h2>
@@ -214,7 +206,6 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
           both of you.
         </p>
       </div>
-    </div>,
-    document.body,
+    </Overlay>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { m, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { springs } from '@/motion/springs';
 import {
   Check,
@@ -509,46 +509,50 @@ export function Bubble({
           </button>
         </div>
 
-        {pickerOpen && (
-          <ReactionPicker
-            mine={mine}
-            current={myReactions}
-            onPick={toggleReaction}
-            {...(bulkReactions.length > 0
-              ? {
-                  onBulk: () => {
-                    setPickerOpen(false);
-                    onBulkReact(message);
-                  },
-                  bulkCount: bulkReactions.length,
-                }
-              : {})}
-            onMore={() => {
-              setPickerOpen(false);
-              setMenuOpen(true);
-            }}
-            onClose={() => {
-              setPickerOpen(false);
-            }}
-          />
-        )}
+        <AnimatePresence>
+          {pickerOpen && (
+            <ReactionPicker
+              key="picker"
+              mine={mine}
+              current={myReactions}
+              onPick={toggleReaction}
+              {...(bulkReactions.length > 0
+                ? {
+                    onBulk: () => {
+                      setPickerOpen(false);
+                      onBulkReact(message);
+                    },
+                    bulkCount: bulkReactions.length,
+                  }
+                : {})}
+              onMore={() => {
+                setPickerOpen(false);
+                setMenuOpen(true);
+              }}
+              onClose={() => {
+                setPickerOpen(false);
+              }}
+            />
+          )}
 
-        {menuOpen && (
-          <MessageMenu
-            mine={mine}
-            pinned={pinned}
-            canCopy={message.payload.kind === 'text'}
-            canEdit={editable}
-            onCopy={copyText}
-            onTogglePin={() => {
-              onTogglePin(message);
-            }}
-            onEdit={startEdit}
-            onClose={() => {
-              setMenuOpen(false);
-            }}
-          />
-        )}
+          {menuOpen && (
+            <MessageMenu
+              key="menu"
+              mine={mine}
+              pinned={pinned}
+              canCopy={message.payload.kind === 'text'}
+              canEdit={editable}
+              onCopy={copyText}
+              onTogglePin={() => {
+                onTogglePin(message);
+              }}
+              onEdit={startEdit}
+              onClose={() => {
+                setMenuOpen(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
 
         <div
           role="listitem"

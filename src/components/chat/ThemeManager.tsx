@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Check, ImagePlus, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { extractThemeHue } from '@/utils/theme';
+import { Overlay } from '@/components/ui/Overlay';
 import { WallpaperCrop } from './WallpaperCrop';
 import { cn } from '@/utils/cn';
 
@@ -14,7 +14,7 @@ import { cn } from '@/utils/cn';
  * custom theme is derived from an uploaded image and lives only on this device —
  * deriving it needs the picture, which is never sent anywhere.
  */
-export function ThemeManager({ onClose }: { onClose: () => void }) {
+export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { accent, bg, wallpaper, presets, backgrounds, setPreset, setCustom, setBackground, setWallpaper } =
     useTheme();
   const [busy, setBusy] = useState(false);
@@ -35,21 +35,15 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Theme"
-      className="fixed inset-0 z-50 flex items-center justify-center animate-backdrop bg-bg-deep/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
+  return (
+    <>
+    <Overlay
+      open={open}
+      onClose={onClose}
+      label="Theme"
+      size="flex max-h-[80vh] w-[min(30rem,92vw)] flex-col"
     >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
-                   rounded-lg border border-hairline bg-surface shadow-lift"
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <div>
             <h2 className="text-sm font-medium text-text">Theme</h2>
@@ -241,20 +235,20 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
           </p>
         </div>
       </div>
+    </Overlay>
 
-      {cropFile && (
-        <WallpaperCrop
-          file={cropFile}
-          onApply={(dataUrl) => {
-            setWallpaper(dataUrl);
-            setCropFile(null);
-          }}
-          onCancel={() => {
-            setCropFile(null);
-          }}
-        />
-      )}
-    </div>,
-    document.body,
+    {cropFile && (
+      <WallpaperCrop
+        file={cropFile}
+        onApply={(dataUrl) => {
+          setWallpaper(dataUrl);
+          setCropFile(null);
+        }}
+        onCancel={() => {
+          setCropFile(null);
+        }}
+      />
+    )}
+    </>
   );
 }

@@ -19,6 +19,8 @@ interface OverlayProps {
   initialFocus?: RefObject<HTMLElement | null>;
   /** Panel width/height box. Override for anything that isn't a small dialog. */
   size?: string;
+  /** Vertical placement. `top` drops it ~10vh down — for search / command palettes. */
+  align?: 'center' | 'top';
   /** Dim + blur behind the panel. Off for overlays meant to sit over live content. */
   dim?: boolean;
   /** Skip the default panel chrome (border/background/shadow) — caller styles everything. */
@@ -46,6 +48,7 @@ export function Overlay({
   className,
   initialFocus,
   size = 'max-h-[min(88vh,44rem)] w-[min(28rem,94vw)]',
+  align = 'center',
   dim = true,
   bare = false,
 }: OverlayProps) {
@@ -60,7 +63,10 @@ export function Overlay({
     <AnimatePresence>
       {open && (
         <m.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className={cn(
+            'fixed inset-0 z-50 flex justify-center p-4',
+            align === 'top' ? 'items-start pt-[10vh]' : 'items-center',
+          )}
           initial="hidden"
           animate="visible"
           exit="exit"
