@@ -52,7 +52,7 @@ export function CallLogEntry({ message, payload, mine }: CallLogEntryProps) {
         className={cn(
           'flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs',
           'bg-surface/70 backdrop-blur-sm',
-          missed ? 'border-danger/40 text-danger' : 'border-border text-secondary',
+          missed ? 'border-danger/40 text-danger' : 'border-hairline text-secondary',
         )}
       >
         <Icon size={13} aria-hidden />

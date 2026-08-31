@@ -17,6 +17,8 @@ interface OverlayProps {
   className?: string;
   /** Focus this on open instead of the panel's first focusable. */
   initialFocus?: RefObject<HTMLElement | null>;
+  /** Panel width/height box. Override for anything that isn't a small dialog. */
+  size?: string;
   /** Dim + blur behind the panel. Off for overlays meant to sit over live content. */
   dim?: boolean;
   /** Skip the default panel chrome (border/background/shadow) — caller styles everything. */
@@ -43,6 +45,7 @@ export function Overlay({
   labelledBy,
   className,
   initialFocus,
+  size = 'max-h-[min(88vh,44rem)] w-[min(28rem,94vw)]',
   dim = true,
   bare = false,
 }: OverlayProps) {
@@ -76,7 +79,8 @@ export function Overlay({
             {...(labelledBy ? { 'aria-labelledby': labelledBy } : {})}
             variants={scaleIn}
             className={cn(
-              'relative z-10 max-h-[min(90vh,44rem)] w-[min(28rem,94vw)] overflow-hidden',
+              'relative z-10 overflow-hidden',
+              size,
               !bare && 'rounded-lg border border-hairline bg-surface shadow-raised',
               className,
             )}

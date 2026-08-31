@@ -112,7 +112,9 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
     if (!rect) return;
     const px = (event.clientX - rect.left) / rect.width - 0.5;
     const py = (event.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: -py * 6, y: px * 6 });
+    // Gentle — half the old amplitude. A hint that the glass is a physical
+    // pane, not a thing that chases the cursor.
+    setTilt({ x: -py * 3.5, y: px * 3.5 });
   };
 
   const strength = assessment?.level ?? null;
@@ -147,7 +149,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
             setShaking(false);
           }}
           className={cn(
-            'glass edge-light rounded-xl border border-border p-7 shadow-lift',
+            'glass edge-light rounded-xl border border-hairline p-7 depth-lg',
             'transition-[transform,box-shadow] duration-300 ease-soft',
             shaking && 'animate-shake',
           )}
@@ -166,7 +168,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                   ? 'scale-105 border-accent bg-accent-muted/40 text-accent shadow-glow'
                   : focused
                     ? 'border-accent/60 bg-surface-raised text-accent'
-                    : 'border-border bg-surface-raised text-secondary',
+                    : 'border-hairline bg-surface-raised text-secondary',
               )}
             >
               {busy ? <LockOpen size={20} aria-hidden /> : <Lock size={20} aria-hidden />}
@@ -222,7 +224,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                     'transition-[border-color,box-shadow,transform] duration-200 ease-soft',
                     message
                       ? 'border-danger focus:border-danger'
-                      : 'border-border hover:border-border-strong focus:border-accent focus:shadow-glow',
+                      : 'border-hairline hover:border-hairline-strong focus:border-accent focus:shadow-glow',
                   )}
                 />
 
@@ -258,7 +260,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                             : strength === 'fair'
                               ? 'bg-accent'
                               : 'bg-danger'
-                          : 'bg-border',
+                          : 'bg-hairline',
                       )}
                     />
                   ))}

@@ -219,10 +219,10 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
       // and sits over message bubbles, and at normal glass opacity the bubbles
       // read through it as ghosting.
       className="animate-scale-in absolute bottom-[calc(100%+0.75rem)] right-0 z-30 w-[min(26rem,86vw)]
-                 overflow-hidden rounded-md border border-border bg-surface/97 shadow-lift
+                 overflow-hidden rounded-md border border-hairline bg-surface/97 shadow-lift
                  backdrop-blur-xl"
     >
-      <div className="flex items-center gap-2 border-b border-border p-2">
+      <div className="flex items-center gap-2 border-b border-hairline p-2">
         <div className="relative flex-1">
           <Search
             size={15}
@@ -239,7 +239,7 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
             }}
             placeholder="Search GIFs"
             aria-label="Search GIFs"
-            className="h-10 w-full rounded-sm border border-border bg-surface-raised pl-9 pr-3
+            className="h-10 w-full rounded-sm border border-hairline bg-surface-raised pl-9 pr-3
                        text-base text-text placeholder:text-muted focus:border-accent
                        focus:outline-none"
           />
@@ -358,7 +358,7 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
               <button
                 type="button"
                 onClick={loadMore}
-                className="press rounded-full border border-border px-3 py-1 text-[0.6875rem]
+                className="press rounded-full border border-hairline px-3 py-1 text-[0.6875rem]
                            text-secondary hover:border-accent hover:text-text"
               >
                 Load more
@@ -370,7 +370,7 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
         )}
       </div>
 
-      <p className="flex items-start gap-1.5 border-t border-border px-3 py-2 text-[0.625rem] leading-relaxed text-muted">
+      <p className="flex items-start gap-1.5 border-t border-hairline px-3 py-2 text-[0.625rem] leading-relaxed text-muted">
         <ShieldAlert size={12} className="mt-0.5 shrink-0" aria-hidden />
         Search terms go to Giphy. The GIF you pick is encrypted before sending — the other
         person never contacts Giphy. Right-click to favourite.

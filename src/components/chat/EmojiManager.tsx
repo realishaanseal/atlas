@@ -66,9 +66,9 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
           event.stopPropagation();
         }}
         className="animate-scale-in flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
-                   rounded-lg border border-border bg-surface shadow-lift"
+                   rounded-lg border border-hairline bg-surface shadow-lift"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <div>
             <h2 className="text-sm font-medium text-text">Custom emoji</h2>
             <p className="text-[0.6875rem] text-muted">
@@ -87,7 +87,7 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="border-b border-border p-4">
+        <div className="border-b border-hairline p-4">
           <div className="flex items-end gap-2">
             <button
               type="button"
@@ -95,7 +95,7 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
               onClick={() => fileRef.current?.click()}
               className={cn(
                 'press flex size-14 shrink-0 items-center justify-center rounded-md border',
-                'border-dashed border-border-strong bg-surface-raised text-muted',
+                'border-dashed border-hairline-strong bg-surface-raised text-muted',
                 'hover:border-accent hover:text-accent disabled:opacity-40',
               )}
               aria-label="Choose an image"
@@ -116,7 +116,7 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
               <label htmlFor="emoji-name" className="mb-1 block text-[0.6875rem] text-secondary">
                 Shortcode
               </label>
-              <div className="flex items-center gap-1 rounded-sm border border-border bg-surface-raised px-2">
+              <div className="flex items-center gap-1 rounded-sm border border-hairline bg-surface-raised px-2">
                 <span className="text-sm text-muted">:</span>
                 <input
                   id="emoji-name"
@@ -208,7 +208,7 @@ export function EmojiManager({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <p className="border-t border-border px-4 py-2 text-[0.625rem] leading-relaxed text-muted">
+        <p className="border-t border-hairline px-4 py-2 text-[0.625rem] leading-relaxed text-muted">
           Emoji are encrypted like everything else, but unlike messages they do not expire after
           24 hours — a pack that vanished daily would be useless. Deleting one here removes it for
           both of you.

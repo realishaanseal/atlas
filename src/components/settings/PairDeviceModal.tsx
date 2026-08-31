@@ -80,10 +80,10 @@ export function PairDeviceModal({ onClose }: PairDeviceModalProps) {
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className="animate-scale-in w-[min(26rem,94vw)] overflow-hidden rounded-lg border border-border
+        className="animate-scale-in w-[min(26rem,94vw)] overflow-hidden rounded-lg border border-hairline
                    bg-surface shadow-lift"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-text">
             <MonitorSmartphone size={15} className="text-accent" aria-hidden />
             Add one of my devices

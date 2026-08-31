@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
+import { m } from 'motion/react';
 import { X, Clock } from 'lucide-react';
 import { SCHEDULE } from '@/config';
+import { Overlay } from '@/components/ui/Overlay';
+import { springs } from '@/motion/springs';
 import { cn } from '@/utils/cn';
 
 interface ScheduleModalProps {
+  open: boolean;
   onConfirm: (deliverAt: number) => void;
   onClose: () => void;
 }
@@ -15,7 +18,7 @@ function toLocalInput(ms: number): string {
   return d.toISOString().slice(0, 16);
 }
 
-export function ScheduleModal({ onConfirm, onClose }: ScheduleModalProps) {
+export function ScheduleModal({ open, onConfirm, onClose }: ScheduleModalProps) {
   const [value, setValue] = useState(() => toLocalInput(Date.now() + 60 * 60 * 1000));
 
   const chosen = new Date(value).getTime();
@@ -45,89 +48,76 @@ export function ScheduleModal({ onConfirm, onClose }: ScheduleModalProps) {
     },
   ];
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Schedule message"
-      className="fixed inset-0 z-[60] flex items-center justify-center animate-backdrop bg-bg-deep/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in w-[min(24rem,92vw)] overflow-hidden rounded-lg border border-border
-                   bg-surface shadow-lift"
-      >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-text">
-            <Clock size={15} className="text-accent" aria-hidden />
-            Schedule message
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="press flex size-8 items-center justify-center rounded-full text-muted
-                       hover:bg-surface-raised hover:text-text"
-          >
-            <X size={16} aria-hidden />
-          </button>
-        </div>
-
-        <div className="p-4">
-          <div className="mb-3 flex flex-wrap gap-2">
-            {presets.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => {
-                  setValue(toLocalInput(preset.at()));
-                }}
-                className="press rounded-full border border-border bg-surface-raised px-3 py-1.5
-                           text-xs text-secondary hover:border-accent hover:text-text"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-
-          <input
-            type="datetime-local"
-            value={value}
-            min={toLocalInput(min)}
-            max={toLocalInput(max)}
-            onChange={(event) => {
-              setValue(event.target.value);
-            }}
-            className="mb-1 h-11 w-full rounded-md border border-border bg-surface-raised px-3
-                       text-sm text-text focus:border-accent focus:outline-none [color-scheme:dark]"
-          />
-          <p className="mb-4 text-[0.6875rem] text-muted">
-            {valid
-              ? `Delivers ${new Date(chosen).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`
-              : 'Pick a time between a minute and a week from now.'}
-          </p>
-
-          <button
-            type="button"
-            disabled={!valid}
-            onClick={() => {
-              onConfirm(chosen);
-            }}
-            className={cn(
-              'press flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm',
-              'font-medium text-white shadow-glow',
-              'animate-gradient bg-gradient-to-br from-accent-solid via-accent-solid-hover to-accent-solid-deep disabled:opacity-40 disabled:shadow-none',
-            )}
-          >
-            <Clock size={15} aria-hidden />
-            Schedule
-          </button>
-        </div>
+  return (
+    <Overlay open={open} onClose={onClose} label="Schedule message" size="w-[min(24rem,92vw)]">
+      <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-text">
+          <Clock size={15} className="text-accent" aria-hidden />
+          Schedule message
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="press flex size-8 items-center justify-center rounded-full text-muted
+                     hover:bg-surface-raised hover:text-text"
+        >
+          <X size={16} aria-hidden />
+        </button>
       </div>
-    </div>,
-    document.body,
+
+      <div className="p-4">
+        <div className="mb-3 flex flex-wrap gap-2">
+          {presets.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                setValue(toLocalInput(preset.at()));
+              }}
+              className="press rounded-full border border-hairline bg-surface-raised px-3 py-1.5
+                         text-xs text-secondary hover:border-accent hover:text-text"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <input
+          type="datetime-local"
+          value={value}
+          min={toLocalInput(min)}
+          max={toLocalInput(max)}
+          onChange={(event) => {
+            setValue(event.target.value);
+          }}
+          className="mb-1 h-11 w-full rounded-md border border-hairline bg-surface-raised px-3
+                     text-sm text-text focus:border-accent focus:outline-none [color-scheme:dark]"
+        />
+        <p className="mb-4 text-[0.6875rem] text-muted">
+          {valid
+            ? `Delivers ${new Date(chosen).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`
+            : 'Pick a time between a minute and a week from now.'}
+        </p>
+
+        <m.button
+          type="button"
+          disabled={!valid}
+          onClick={() => {
+            onConfirm(chosen);
+          }}
+          whileTap={{ scale: 0.98 }}
+          transition={springs.snappy}
+          className={cn(
+            'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm',
+            'font-medium text-white shadow-glow',
+            'animate-gradient bg-gradient-to-br from-accent-solid via-accent-solid-hover to-accent-solid-deep disabled:opacity-40 disabled:shadow-none',
+          )}
+        >
+          <Clock size={15} aria-hidden />
+          Schedule
+        </m.button>
+      </div>
+    </Overlay>
   );
 }

@@ -120,7 +120,7 @@ export function CameraSheet({ onCapture, onClose }: CameraSheetProps) {
           onClick={onClose}
           aria-label="Close camera"
           className="press glass mt-3 flex size-10 items-center justify-center rounded-full
-                     border border-border text-text"
+                     border border-hairline text-text"
         >
           <X size={18} aria-hidden />
         </button>
@@ -131,7 +131,7 @@ export function CameraSheet({ onCapture, onClose }: CameraSheetProps) {
           }}
           aria-label="Switch camera"
           className="press glass mt-3 flex size-10 items-center justify-center rounded-full
-                     border border-border text-text"
+                     border border-hairline text-text"
         >
           <SwitchCamera size={18} aria-hidden />
         </button>

@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { m } from 'motion/react';
 import { Search, X, Zap } from 'lucide-react';
 import { EMOJI_CATEGORIES, parseEntry, searchEmoji } from '@/components/chat/emojiData';
 import { ReactionGlyph } from '@/components/chat/EmojiText';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
+import { Overlay } from '@/components/ui/Overlay';
+import { springs } from '@/motion/springs';
 import { cn } from '@/utils/cn';
 
 interface BulkReactionsModalProps {
+  open: boolean;
   selected: string[];
   max: number;
   onToggle: (value: string) => void;
@@ -15,6 +18,7 @@ interface BulkReactionsModalProps {
 }
 
 export function BulkReactionsModal({
+  open,
   selected,
   max,
   onToggle,
@@ -36,7 +40,7 @@ export function BulkReactionsModal({
   const cell = (value: string, node: React.ReactNode, label: string) => {
     const on = isOn(value);
     return (
-      <button
+      <m.button
         key={value}
         type="button"
         onClick={() => {
@@ -45,34 +49,29 @@ export function BulkReactionsModal({
         disabled={!on && atCap}
         aria-pressed={on}
         aria-label={label}
+        whileHover={{ scale: 1.12 }}
+        whileTap={{ scale: 0.92 }}
+        transition={springs.snappy}
         className={cn(
           'flex size-10 items-center justify-center rounded-md text-2xl leading-none',
-          'transition-transform duration-150 ease-spring hover:scale-110',
           on && 'bg-accent-solid/30 ring-1 ring-accent',
           !on && atCap && 'opacity-30',
         )}
       >
         {node}
-      </button>
+      </m.button>
     );
   };
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Quick reactions"
-      className="fixed inset-0 z-50 flex items-center justify-center animate-backdrop bg-bg-deep/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
+  return (
+    <Overlay
+      open={open}
+      onClose={onClose}
+      label="Quick reactions"
+      size="flex max-h-[80vh] w-[min(30rem,94vw)] flex-col"
     >
-      <div
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-        className="animate-scale-in flex max-h-[80vh] w-[min(30rem,94vw)] flex-col overflow-hidden
-                   rounded-lg border border-border bg-surface shadow-lift"
-      >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-text">
             <Zap size={15} className="text-accent" aria-hidden />
             Quick reactions
@@ -88,7 +87,7 @@ export function BulkReactionsModal({
           </button>
         </div>
 
-        <div className="border-b border-border px-4 py-3">
+        <div className="border-b border-hairline px-4 py-3">
           <p className="mb-3 text-[0.8125rem] leading-relaxed text-secondary">
             Pick up to {max} emoji. A ⚡ button appears on every message — tapping it reacts with
             all of these at once.
@@ -107,7 +106,7 @@ export function BulkReactionsModal({
                     onRemove(value);
                   }}
                   aria-label="Remove"
-                  className="press flex items-center gap-1 rounded-full border border-border
+                  className="press flex items-center gap-1 rounded-full border border-hairline
                              bg-surface-raised py-1 pl-2 pr-1.5 text-base leading-none hover:border-danger"
                 >
                   <ReactionGlyph value={value} size={20} />
@@ -122,7 +121,7 @@ export function BulkReactionsModal({
         </div>
 
         {/* Search */}
-        <div className="border-b border-border px-4 py-2">
+        <div className="border-b border-hairline px-4 py-2">
           <div className="flex items-center gap-2 rounded-md bg-surface-raised px-2.5 py-1.5">
             <Search size={14} className="text-muted" aria-hidden />
             <input
@@ -181,7 +180,6 @@ export function BulkReactionsModal({
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </Overlay>
   );
 }

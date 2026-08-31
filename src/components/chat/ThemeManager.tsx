@@ -48,9 +48,9 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
           event.stopPropagation();
         }}
         className="animate-scale-in flex max-h-[80vh] w-[min(30rem,92vw)] flex-col overflow-hidden
-                   rounded-lg border border-border bg-surface shadow-lift"
+                   rounded-lg border border-hairline bg-surface shadow-lift"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <div>
             <h2 className="text-sm font-medium text-text">Theme</h2>
             <p className="text-[0.6875rem] text-muted">Just for this device</p>
@@ -108,7 +108,7 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
             disabled={busy}
             onClick={() => fileRef.current?.click()}
             className={cn(
-              'flex w-full items-center gap-3 rounded-md border border-dashed border-border-strong',
+              'flex w-full items-center gap-3 rounded-md border border-dashed border-hairline-strong',
               'bg-surface-raised px-4 py-3 text-left text-sm text-secondary transition-colors',
               'hover:border-accent hover:text-text disabled:opacity-50',
               accent.kind === 'custom' && 'border-accent text-text',
@@ -161,7 +161,7 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
                 >
                   <span
                     className={cn(
-                      'flex size-11 items-center justify-center rounded-full border border-border',
+                      'flex size-11 items-center justify-center rounded-full border border-hairline',
                       'transition-transform duration-150 group-hover:scale-105',
                       active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : '',
                     )}
@@ -182,7 +182,7 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
                 className={cn(
                   'flex size-11 items-center justify-center rounded-full border text-muted',
                   'transition-transform duration-150 group-hover:scale-105 group-hover:text-accent',
-                  bg !== null ? 'border-accent text-accent' : 'border-dashed border-border-strong',
+                  bg !== null ? 'border-accent text-accent' : 'border-dashed border-hairline-strong',
                 )}
               >
                 <ImagePlus size={16} aria-hidden />
@@ -210,7 +210,7 @@ export function ThemeManager({ onClose }: { onClose: () => void }) {
                   'group-hover:scale-105 group-hover:text-accent',
                   wallpaper !== null
                     ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface'
-                    : 'border-dashed border-border-strong',
+                    : 'border-dashed border-hairline-strong',
                 )}
                 style={wallpaper !== null ? { backgroundImage: `url(${wallpaper})` } : undefined}
               >

@@ -128,7 +128,7 @@ export function AudioBubble({ cryptoKey, payload, mine }: AudioBubbleProps) {
                       : 'bg-white/35'
                     : passed
                       ? 'bg-accent'
-                      : 'bg-border-strong',
+                      : 'bg-hairline-strong',
                 )}
                 style={{ height: `${String(Math.max(10, Math.min(100, peak)))}%` }}
               />

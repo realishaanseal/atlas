@@ -143,11 +143,11 @@ export function WallpaperCrop({ file, onApply, onCancel }: WallpaperCropProps) {
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className="animate-rise flex flex-col items-center gap-4 rounded-lg border border-border
+        className="animate-rise flex flex-col items-center gap-4 rounded-lg border border-hairline
                    bg-surface p-4 shadow-lift"
       >
         <div
-          className="relative overflow-hidden rounded-md border border-border bg-bg-deep"
+          className="relative overflow-hidden rounded-md border border-hairline bg-bg-deep"
           style={{ width: pw, height: ph }}
         >
           {!ready && (
@@ -185,7 +185,7 @@ export function WallpaperCrop({ file, onApply, onCancel }: WallpaperCropProps) {
             type="button"
             onClick={onCancel}
             className="press flex flex-1 items-center justify-center gap-1.5 rounded-md border
-                       border-border py-2.5 text-sm text-secondary hover:text-text"
+                       border-hairline py-2.5 text-sm text-secondary hover:text-text"
           >
             <X size={15} aria-hidden />
             Cancel

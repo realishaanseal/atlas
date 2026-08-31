@@ -42,9 +42,9 @@ export function PinPanel({ pins, onJump, onUnpin, liveIds, onClose }: PinPanelPr
       role="dialog"
       aria-label="Pinned messages"
       className="animate-scale-in absolute right-0 top-12 z-30 w-[min(22rem,86vw)] overflow-hidden
-                 rounded-md border border-border bg-surface/97 shadow-lift backdrop-blur-xl"
+                 rounded-md border border-hairline bg-surface/97 shadow-lift backdrop-blur-xl"
     >
-      <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
+      <div className="flex items-center gap-2 border-b border-hairline px-3.5 py-2.5">
         <Pin size={14} className="text-accent" aria-hidden />
         <span className="text-sm font-medium text-text">Pinned messages</span>
         {pins.length > 0 && (

@@ -317,7 +317,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
       {/* Tools clustered in the bottom-left corner — a compact glass pill
           rather than a bar spanning the window. */}
       <div className="absolute bottom-0 left-0 p-3 pb-safe">
-        <div className="glass relative flex items-center gap-1 rounded-2xl border border-border p-1.5 shadow-lift">
+        <div className="glass relative flex items-center gap-1 rounded-2xl border border-hairline p-1.5 shadow-lift">
           <button
             type="button"
             onClick={() => {
@@ -347,7 +347,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
             <Brush size={16} aria-hidden />
           </button>
 
-          <span className="mx-1 h-6 w-px bg-border" aria-hidden />
+          <span className="mx-1 h-6 w-px bg-hairline" aria-hidden />
 
           {/* Thickness: a short slider with a live preview dot. */}
           <span
@@ -371,7 +371,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
             className="h-1.5 w-20 cursor-pointer accent-accent"
           />
 
-          <span className="mx-1 h-6 w-px bg-border" aria-hidden />
+          <span className="mx-1 h-6 w-px bg-hairline" aria-hidden />
 
           <button
             type="button"
@@ -557,7 +557,7 @@ function ColorWheel({
     <div
       ref={rootRef}
       className="glass animate-scale-in absolute bottom-full left-0 mb-3 flex flex-col items-center
-                 gap-2 rounded-2xl border border-border p-3 shadow-lift"
+                 gap-2 rounded-2xl border border-hairline p-3 shadow-lift"
     >
       <div className="relative" style={{ width: WHEEL, height: WHEEL }}>
         {/* Hue ring */}
@@ -656,7 +656,7 @@ function ColorWheel({
           }}
           spellCheck={false}
           aria-label="Hex colour"
-          className="h-8 w-full min-w-0 rounded-md border border-border bg-surface-raised px-2
+          className="h-8 w-full min-w-0 rounded-md border border-hairline bg-surface-raised px-2
                      font-mono text-xs uppercase text-text focus:border-accent focus:outline-none"
         />
       </div>

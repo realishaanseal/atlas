@@ -113,9 +113,7 @@ export function Composer({
   useBackClose(gifOpen, () => {
     setGifOpen(false);
   });
-  useBackClose(scheduleModalOpen, () => {
-    setScheduleModalOpen(false);
-  });
+  // scheduleModalOpen's back handling lives in <Overlay>.
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -953,19 +951,18 @@ export function Composer({
         </p>
       )}
 
-      {scheduleModalOpen && (
-        <ScheduleModal
-          onConfirm={(deliverAt) => {
-            onSchedule(value.trim(), deliverAt);
-            setValue('');
-            setScheduleMode(false);
-            setScheduleModalOpen(false);
-          }}
-          onClose={() => {
-            setScheduleModalOpen(false);
-          }}
-        />
-      )}
+      <ScheduleModal
+        open={scheduleModalOpen}
+        onConfirm={(deliverAt) => {
+          onSchedule(value.trim(), deliverAt);
+          setValue('');
+          setScheduleMode(false);
+          setScheduleModalOpen(false);
+        }}
+        onClose={() => {
+          setScheduleModalOpen(false);
+        }}
+      />
     </div>
   );
 }

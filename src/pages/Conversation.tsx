@@ -175,9 +175,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
   useBackClose(archiveOpen, () => {
     setArchiveOpen(false);
   });
-  useBackClose(bulkReactOpen, () => {
-    setBulkReactOpen(false);
-  });
+  // bulkReactOpen's back handling lives in <Overlay>.
   useBackClose(replyTo !== null, () => {
     setReplyTo(null);
   });
@@ -744,7 +742,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
             onClick={() => {
               setScheduledOpen((open) => !open);
             }}
-            className="flex w-full items-center gap-2 rounded-t-md border border-b-0 border-border
+            className="flex w-full items-center gap-2 rounded-t-md border border-b-0 border-hairline
                        bg-surface/70 px-3 py-1.5 text-xs text-secondary hover:text-text"
           >
             <Clock size={13} className="text-accent" aria-hidden />
@@ -757,11 +755,11 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
           </button>
 
           {scheduledOpen && (
-            <div className="max-h-52 overflow-y-auto border border-b-0 border-border bg-surface/95">
+            <div className="max-h-52 overflow-y-auto border border-b-0 border-hairline bg-surface/95">
               {scheduledMessages.map((message) => (
                 <div
                   key={message.id}
-                  className="group flex items-start gap-2 border-b border-border px-3 py-2 last:border-b-0"
+                  className="group flex items-start gap-2 border-b border-hairline px-3 py-2 last:border-b-0"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-[0.625rem] text-accent">
@@ -859,14 +857,12 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         />
       )}
 
-      {viewerUrl !== null && (
-        <ImageViewer
-          url={viewerUrl}
-          onClose={() => {
-            setViewerUrl(null);
-          }}
-        />
-      )}
+      <ImageViewer
+        url={viewerUrl}
+        onClose={() => {
+          setViewerUrl(null);
+        }}
+      />
 
       {scribbleOpen && (
         <ScribbleSheet
@@ -889,17 +885,16 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         />
       )}
 
-      {bulkReactOpen && (
-        <BulkReactionsModal
-          selected={bulkReactions.emojis}
-          max={bulkReactions.max}
-          onToggle={bulkReactions.toggle}
-          onRemove={bulkReactions.remove}
-          onClose={() => {
-            setBulkReactOpen(false);
-          }}
-        />
-      )}
+      <BulkReactionsModal
+        open={bulkReactOpen}
+        selected={bulkReactions.emojis}
+        max={bulkReactions.max}
+        onToggle={bulkReactions.toggle}
+        onRemove={bulkReactions.remove}
+        onClose={() => {
+          setBulkReactOpen(false);
+        }}
+      />
 
       {archiveOpen && archive.isArchivist && (
         <ArchiveManager

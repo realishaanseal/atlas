@@ -57,10 +57,10 @@ export function ArchiveManager({
         onClick={(event) => {
           event.stopPropagation();
         }}
-        className="animate-scale-in w-[min(27rem,92vw)] overflow-hidden rounded-lg border border-border
+        className="animate-scale-in w-[min(27rem,92vw)] overflow-hidden rounded-lg border border-hairline
                    bg-surface shadow-lift"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-text">
             <Archive size={15} className="text-accent" aria-hidden />
             Chat archive
@@ -90,7 +90,7 @@ export function ArchiveManager({
             role="switch"
             aria-checked={enabled}
             onClick={onToggle}
-            className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2.5
+            className="flex w-full items-center gap-3 rounded-md border border-hairline px-3 py-2.5
                        text-left transition-colors duration-150 hover:bg-surface-raised"
           >
             <span className="min-w-0 flex-1">

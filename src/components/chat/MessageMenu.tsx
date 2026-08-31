@@ -63,7 +63,7 @@ export function MessageMenu({
       role="menu"
       className={cn(
         'glass animate-scale-in stagger absolute bottom-full z-40 mb-1 min-w-[10rem] overflow-hidden',
-        'rounded-md border border-border py-1 shadow-lift',
+        'rounded-md border border-hairline py-1 shadow-lift',
         mine ? 'right-0' : 'left-0',
       )}
     >

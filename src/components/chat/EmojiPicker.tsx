@@ -97,7 +97,7 @@ export function EmojiPicker({
         // Near-opaque, not glass: this panel is a dense grid of glyphs and
         // sits over message bubbles. At normal glass opacity the content
         // behind reads through it as ghosting.
-        'border border-border bg-surface/97 shadow-lift backdrop-blur-xl',
+        'border border-hairline bg-surface/97 shadow-lift backdrop-blur-xl',
         // Opens UPWARD by default. Every anchor for this picker — the composer
         // and the reaction bar — sits near the bottom of the screen, so
         // downward is off-screen. Callers can override via className.
@@ -106,7 +106,7 @@ export function EmojiPicker({
         className,
       )}
     >
-      <div className="border-b border-border p-2">
+      <div className="border-b border-hairline p-2">
         <div className="relative">
           <Search
             size={14}
@@ -122,7 +122,7 @@ export function EmojiPicker({
             }}
             placeholder="Search emoji"
             aria-label="Search emoji"
-            className="h-9 w-full rounded-sm border border-border bg-surface/70 pl-8 pr-3
+            className="h-9 w-full rounded-sm border border-hairline bg-surface/70 pl-8 pr-3
                        text-base text-text placeholder:text-muted focus:border-accent
                        focus:outline-none"
           />
@@ -130,7 +130,7 @@ export function EmojiPicker({
       </div>
 
       {!searching && (
-        <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1.5">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-hairline px-2 py-1.5">
           {/* Custom sits first, ahead of the Unicode categories — it is the
               shortest list and the one most likely to be wanted. Hidden
               entirely when the pack is empty rather than showing a dead tab. */}
@@ -230,7 +230,7 @@ export function EmojiPicker({
         )}
       </div>
 
-      <p className="border-t border-border px-3 py-1.5 text-[0.625rem] text-muted">
+      <p className="border-t border-hairline px-3 py-1.5 text-[0.625rem] text-muted">
         Right-click an emoji to pin it to your quick reactions.
       </p>
     </div>

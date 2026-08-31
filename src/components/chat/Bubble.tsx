@@ -178,7 +178,7 @@ function ReceiptPopover({
       aria-label="Message info"
       style={{ right: pos.right, bottom: pos.bottom }}
       className="glass animate-scale-in fixed z-[60] w-max min-w-[11rem] origin-bottom-right
-                 rounded-md border border-border p-2.5 text-left shadow-lift"
+                 rounded-md border border-hairline p-2.5 text-left shadow-lift"
     >
       <p className="mb-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
         Message info
@@ -637,7 +637,7 @@ export function Bubble({
                   }
                 }}
                 aria-label="Edit message"
-                className="w-full resize-none rounded-md border border-border bg-surface px-2 py-1
+                className="w-full resize-none rounded-md border border-hairline bg-surface px-2 py-1
                            text-[0.9375rem] text-text focus:border-accent focus:outline-none"
               />
               <span className={cn('text-[0.625rem]', mine ? 'text-white/70' : 'text-muted')}>
@@ -722,7 +722,7 @@ export function Bubble({
             </button>
 
             {showHistory && (
-              <div className="max-w-full rounded-md border border-border bg-surface-raised p-2.5 text-xs shadow-soft">
+              <div className="max-w-full rounded-md border border-hairline bg-surface-raised p-2.5 text-xs shadow-soft">
                 <p className="mb-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
                   Original
                 </p>

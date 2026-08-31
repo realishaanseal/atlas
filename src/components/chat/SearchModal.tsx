@@ -91,9 +91,9 @@ export function SearchModal({ messages, mySlot, peerName, onJump, onClose }: Sea
           event.stopPropagation();
         }}
         className="animate-scale-in flex max-h-[70vh] w-[min(34rem,94vw)] flex-col overflow-hidden
-                   rounded-lg border border-border bg-surface shadow-lift"
+                   rounded-lg border border-hairline bg-surface shadow-lift"
       >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
           <Search size={16} className="shrink-0 text-muted" aria-hidden />
           <input
             ref={inputRef}
