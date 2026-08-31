@@ -142,7 +142,7 @@ Tailwind v4 via `@tailwindcss/vite` — no config file, tokens live in `@theme` 
 
 **Firebase is lazy-loaded.** The SDK is ~120 KB gzipped and dwarfs everything else, so it's split into its own chunk and only fetched after unlock. The lock screen ships as a few KB of React and paints essentially instantly — which is most of how we hit the 95+ Lighthouse target.
 
-**No Framer Motion.** Every animation in the spec (message appear, typing fade, hover, page transition) is a CSS transition or keyframe under 200ms. Adding 30 KB for that is not justified. `prefers-reduced-motion` is honoured globally in base CSS.
+**Motion (`motion`, ex-Framer Motion) — reversed in the tactile-depth redesign.** The original call was "no animation library: 30 KB is not justified for CSS-length transitions." That reasoning was about the *eager* bundle. The redesign puts the animation runtime (`m` + `LazyMotion(domMax)`, ~38 KB gz) in its own `vendor-c` chunk that only a module behind the access code imports — so a visitor who never unlocks never fetches it, the public site's Lighthouse and critical path are untouched, and `scripts/check-bundle.mjs` still passes. The lock screen and the cover site stay motion-free and CSS-only. `MotionProvider` (`src/motion/config.tsx`) sets `reducedMotion="user"`, and the global `prefers-reduced-motion` CSS block stays — a reduced-motion user gets opacity fades and no transforms. The spring vocabulary lives in `src/motion/springs.ts`; shared enter/exit variants in `src/motion/variants.ts`; the `Overlay` / `Sheet` / `Popover` primitives in `src/components/ui/` replace the hand-rolled portal-and-backdrop pattern that had been copied into a dozen files.
 
 **Fonts:** Inter from Google Fonts with `preconnect` + `display=swap`. Phase 7 should self-host a subset — it removes a third-party origin from the CSP and kills a render-blocking request. Deferred because it's a pure optimisation.
 
@@ -457,6 +457,7 @@ Workers are unavailable.
 | Voice and video calling                            | ✅ done   |
 | Replies and grouped reactions                      | ✅ done   |
 | Crypto tests, self-hosted font, idle lock          | ✅ done   |
+| Tactile-depth redesign + `motion` (see §6)          | ✅ done   |
 | Push notifications                                 | not built |
 
 **Hosting moved from Netlify to Firebase Hosting.** Netlify introduced a

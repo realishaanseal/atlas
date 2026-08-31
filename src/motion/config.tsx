@@ -2,6 +2,13 @@ import { LazyMotion, MotionConfig, domMax } from 'motion/react';
 import type { ReactNode } from 'react';
 import { springs } from './springs';
 
+/** Dev-only: `?reduce` forces the reduced-motion path so it can be checked
+ *  without touching the OS setting. Statically dropped from production. */
+const FORCE_REDUCED =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('reduce');
+
 /**
  * Wraps everything behind the access code in motion's context.
  *
@@ -22,7 +29,10 @@ import { springs } from './springs';
 export function MotionProvider({ children }: { children: ReactNode }) {
   return (
     <LazyMotion features={domMax} strict>
-      <MotionConfig reducedMotion="user" transition={springs.gentle}>
+      <MotionConfig
+        reducedMotion={FORCE_REDUCED ? 'always' : 'user'}
+        transition={springs.gentle}
+      >
         {children}
       </MotionConfig>
     </LazyMotion>
