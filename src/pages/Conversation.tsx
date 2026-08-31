@@ -558,16 +558,27 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         if (file) void sendImage(file);
       }}
     >
-      {dragging && (
-        <div
-          className="animate-rise pointer-events-none absolute inset-3 z-30 flex flex-col
-                     items-center justify-center gap-3 rounded-xl border-2 border-dashed
-                     border-accent bg-bg-deep/80 backdrop-blur-sm"
-        >
-          <ImagePlus size={30} className="text-accent" aria-hidden />
-          <p className="text-sm font-medium text-text">Drop to send</p>
-        </div>
-      )}
+      <AnimatePresence>
+        {dragging && (
+          <m.div
+            initial={{ opacity: 0, scale: 1.02 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.02, transition: { duration: 0.12 } }}
+            transition={springs.gentle}
+            className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center
+                       justify-center gap-3 rounded-xl border-2 border-dashed border-accent
+                       bg-bg-deep/80 backdrop-blur-md"
+          >
+            <m.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <ImagePlus size={30} className="text-accent" aria-hidden />
+            </m.div>
+            <p className="text-sm font-medium text-text">Drop to send</p>
+          </m.div>
+        )}
+      </AnimatePresence>
 
       <Header
         peer={peer}
@@ -678,19 +689,27 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
         </div>
       </div>
 
-      {!scroll.following && (
-        <button
-          type="button"
-          onClick={scroll.scrollToBottom}
-          aria-label="Scroll to latest"
-          className="absolute bottom-24 left-1/2 flex size-9 -translate-x-1/2 items-center
-                     justify-center rounded-full border border-border bg-surface-raised
-                     text-secondary shadow-soft transition-colors
-                     duration-150 hover:text-text"
-        >
-          <ChevronDown size={17} aria-hidden />
-        </button>
-      )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-24 flex justify-center">
+        <AnimatePresence>
+          {!scroll.following && (
+            <m.button
+              type="button"
+              onClick={scroll.scrollToBottom}
+              aria-label="Scroll to latest"
+              initial={{ opacity: 0, y: 8, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.8, transition: { duration: 0.14 } }}
+              transition={springs.snappy}
+              whileTap={{ scale: 0.9 }}
+              className="glass pointer-events-auto flex size-9 items-center justify-center rounded-full
+                         border border-hairline text-secondary depth-lg transition-colors
+                         duration-150 hover:text-text"
+            >
+              <ChevronDown size={17} aria-hidden />
+            </m.button>
+          )}
+        </AnimatePresence>
+      </div>
 
       {uploadError !== null && (
         <p role="alert" className="px-4 pb-1 text-center text-xs text-danger">

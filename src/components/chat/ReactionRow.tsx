@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, m } from 'motion/react';
 import { SmilePlus, MoreHorizontal, Zap } from 'lucide-react';
 import { EmojiPicker } from './EmojiPicker';
 import { ReactionGlyph } from './EmojiText';
 import { useEmojiFavourites } from '@/hooks/useEmojiFavourites';
 import { useCustomEmoji } from '@/hooks/useCustomEmoji';
+import { springs } from '@/motion/springs';
 import type { ParticipantId } from '@/types';
 import { cn } from '@/utils/cn';
 
@@ -75,44 +77,50 @@ export function ReactionRow({ reactions, mySlot, mine, onToggle }: ReactionRowPr
           translucent surface against a gradient reads as a smudge. */}
       <div
         className={cn(
-          'flex max-w-[17rem] flex-wrap items-center gap-1 rounded-2xl border border-border',
-          'bg-surface-raised px-1.5 py-1 shadow-lift',
+          'flex max-w-[17rem] flex-wrap items-center gap-1 rounded-2xl border border-hairline',
+          'bg-surface-raised px-1.5 py-1 depth-lg',
           mine ? 'justify-end' : 'justify-start',
         )}
       >
-        {[...grouped.entries()].map(([emoji, { count, includesMe }]) => (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => {
-              onToggle(emoji);
-            }}
-            aria-label={
-              includesMe
-                ? `Remove your ${describe(emoji)} reaction`
-                : `React ${describe(emoji)}, ${String(count)} so far`
-            }
-            aria-pressed={includesMe}
-            className={cn(
-              'flex items-center gap-1 rounded-full px-2.5 py-1 text-base leading-none',
-              // No entry animation and only a slight hover growth: chips sit
-              // close together in a shared pill, so anything bigger overlaps
-              // its neighbours instead of reading as emphasis.
-              'transition-transform duration-150 ease-spring hover:scale-110',
-              // Your own reactions get a tinted backing rather than a border —
-              // inside a shared pill a per-emoji border would fight the
-              // container's own outline.
-              includesMe && 'bg-accent-solid/35',
-            )}
-          >
-            <ReactionGlyph value={emoji} size={22} />
-            {count > 1 && (
-              <span className={cn('tabular-nums', includesMe ? 'text-white' : 'text-secondary')}>
-                {count}
-              </span>
-            )}
-          </button>
-        ))}
+        <AnimatePresence initial={false}>
+          {[...grouped.entries()].map(([emoji, { count, includesMe }]) => (
+            <m.button
+              key={emoji}
+              type="button"
+              // A chip lands with weight — the "something happened" beat for a
+              // reaction. It settles to scale 1, so the close spacing inside the
+              // pill is only ever a concern for the hover growth, not this.
+              initial={{ opacity: 0, scale: 0.3 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.3, transition: { duration: 0.12 } }}
+              transition={springs.overshoot}
+              whileHover={{ scale: 1.1 }}
+              onClick={() => {
+                onToggle(emoji);
+              }}
+              aria-label={
+                includesMe
+                  ? `Remove your ${describe(emoji)} reaction`
+                  : `React ${describe(emoji)}, ${String(count)} so far`
+              }
+              aria-pressed={includesMe}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-2.5 py-1 text-base leading-none',
+                // Your own reactions get a tinted backing rather than a border —
+                // inside a shared pill a per-emoji border would fight the
+                // container's own outline.
+                includesMe && 'bg-accent-solid/35',
+              )}
+            >
+              <ReactionGlyph value={emoji} size={22} />
+              {count > 1 && (
+                <span className={cn('tabular-nums', includesMe ? 'text-white' : 'text-secondary')}>
+                  {count}
+                </span>
+              )}
+            </m.button>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -217,15 +225,20 @@ export function ReactionPicker({
     // Below `sm` it falls back to aligning with the bubble edge: there is no
     // hover on touch, the picker opens on long-press, and pushing a 240px
     // panel outside the bubble would run it off a phone screen.
-    <div
+    <m.div
       ref={rootRef}
+      initial={{ opacity: 0, scale: 0.85, y: 4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.12 } }}
+      transition={springs.overshoot}
+      style={{ transformOrigin: mine ? 'bottom right' : 'bottom left' }}
       className={cn(
-        'glass animate-scale-in stagger absolute bottom-full z-30 mb-1 flex items-center',
+        'glass absolute bottom-full z-30 mb-1 flex items-center',
         // Tighter on phones. The full strip is ten controls wide, which
         // overflowed a 412px screen and had to be scrolled sideways to reach
         // the custom emoji — so on small screens it shows fewer, smaller ones
         // (see the `hidden sm:flex` on the extras below) and everything fits.
-        'gap-0.5 rounded-full border border-border px-1.5 py-1 shadow-lift',
+        'gap-0.5 rounded-full border border-hairline px-1.5 py-1 depth-lg',
         'sm:gap-1 sm:px-2 sm:py-1.5',
         // Anchored on the side nearest the bubble so it grows OUTWARD into the
         // empty space, never back over the message: right-anchored for your own
@@ -259,7 +272,7 @@ export function ReactionPicker({
           recency beats alphabetical here — unlike the manager, which sorts by
           name because there you are looking something up. */}
       {quickCustom.length > 0 && (
-        <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
+        <span className="mx-px h-5 w-px bg-hairline sm:mx-0.5 sm:h-6" aria-hidden />
       )}
       {quickCustom.map((emoji, index) => (
         <button
@@ -283,7 +296,7 @@ export function ReactionPicker({
         </button>
       ))}
 
-      <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
+      <span className="mx-px h-5 w-px bg-hairline sm:mx-0.5 sm:h-6" aria-hidden />
 
       <button
         type="button"
@@ -319,7 +332,7 @@ export function ReactionPicker({
           there is no hover bar, so the picker carries the handoff. */}
       {onMore && (
         <>
-          <span className="mx-px h-5 w-px bg-border sm:mx-0.5 sm:h-6" aria-hidden />
+          <span className="mx-px h-5 w-px bg-hairline sm:mx-0.5 sm:h-6" aria-hidden />
           <button
             type="button"
             onClick={() => {
@@ -334,6 +347,6 @@ export function ReactionPicker({
           </button>
         </>
       )}
-    </div>
+    </m.div>
   );
 }

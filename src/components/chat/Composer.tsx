@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, m } from 'motion/react';
 import {
   ArrowUp,
   AtSign,
@@ -26,7 +27,21 @@ import { GifPicker } from './GifPicker';
 import { ScheduleModal } from './ScheduleModal';
 import type { GifResult } from '@/services/gifs';
 import { useBackClose } from '@/hooks/useBackGuard';
+import { Popover } from '@/components/ui/Popover';
+import { riseIn } from '@/motion/variants';
+import { springs } from '@/motion/springs';
 import { cn } from '@/utils/cn';
+import type { Variants } from 'motion/react';
+
+/** Attach-menu rows cascade up from the button. */
+const ATTACH_ITEM: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { ...springs.snappy, delay: Math.min(i, 6) * 0.025 },
+  }),
+};
 
 interface ComposerProps {
   onSend: (text: string) => void;
@@ -91,9 +106,7 @@ export function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
 
-  useBackClose(attachOpen, () => {
-    setAttachOpen(false);
-  });
+  // attachOpen's back / dismiss handling lives in <Popover>.
   useBackClose(emojiOpen, () => {
     setEmojiOpen(false);
   });
@@ -301,21 +314,33 @@ export function Composer({
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
 
-  useEffect(() => {
-    if (!attachOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!attachRef.current?.contains(event.target as Node)) setAttachOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAttachOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [attachOpen]);
+  const currentRetention =
+    RETENTION_OPTIONS.find((o) => o.ms === retentionMs)?.label ?? '24 hours';
+
+  const attachItems: {
+    icon: typeof Camera;
+    label: string;
+    action: () => void;
+    trailing?: string;
+  }[] = [
+    { icon: ImagePlus, label: 'Media', action: () => { fileRef.current?.click(); } },
+    { icon: Paperclip, label: 'File', action: () => { attachmentRef.current?.click(); } },
+    {
+      icon: Timer,
+      label: 'Disappears in',
+      trailing: currentRetention,
+      // Cycles rather than opening a submenu — three options is fewer taps to
+      // step through than to pick from.
+      action: () => {
+        const index = RETENTION_OPTIONS.findIndex((o) => o.ms === retentionMs);
+        const next = RETENTION_OPTIONS[(index + 1) % RETENTION_OPTIONS.length];
+        if (next) onRetentionChange(next.ms);
+      },
+    },
+    { icon: Camera, label: 'Camera', action: onOpenCamera },
+    { icon: PenLine, label: 'Scribble', action: onOpenScribble },
+    { icon: Clock, label: 'Schedule', action: () => { setScheduleMode(true); } },
+  ];
 
   /**
    * Fires the send animation for exactly one cycle.
@@ -351,13 +376,13 @@ export function Composer({
     const nearLimit = recorder.elapsedMs > AUDIO.MAX_DURATION_MS - 15_000;
 
     return (
-      <div className="glass edge-light border-t border-border px-3 py-3 pb-safe">
+      <div className="glass edge-light border-t border-hairline px-3 py-3 pb-safe">
         <div className="mx-auto max-w-[850px] pb-3">
           <div
             className={cn(
-              'flex items-center gap-1.5 rounded-2xl border p-1.5 shadow-soft',
-              'bg-surface/60 backdrop-blur-sm transition-colors duration-200 ease-soft',
-              nearLimit ? 'border-danger/60' : 'border-border',
+              'flex items-center gap-1.5 rounded-2xl border p-1.5 depth',
+              'bg-surface/55 backdrop-blur-md transition-colors duration-200 ease-soft',
+              nearLimit ? 'border-danger/60' : 'border-hairline',
             )}
           >
             <button
@@ -430,58 +455,74 @@ export function Composer({
   // --- normal state --------------------------------------------------------
 
   return (
-    <div className="glass edge-light border-t border-border px-3 py-3 pb-safe">
-      {/* Schedule-mode banner: the send button becomes a clock until cancelled. */}
-      {scheduleMode && (
-        <div className="animate-rise mx-auto mb-2 flex max-w-[850px] items-center gap-2 rounded-md
-                        border-l-2 border-accent bg-surface/60 py-2 pl-3 pr-2">
-          <Clock size={14} className="shrink-0 text-accent" aria-hidden />
-          <span className="flex-1 text-xs text-secondary">
-            Scheduling — type your message, then tap the clock to pick a time.
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setScheduleMode(false);
-            }}
-            aria-label="Cancel scheduling"
-            className="press flex size-7 shrink-0 items-center justify-center rounded-full
-                       text-muted hover:bg-surface-raised hover:text-text"
+    <div className="glass edge-light border-t border-hairline px-3 py-3 pb-safe">
+      <AnimatePresence>
+        {/* Schedule-mode banner: the send button becomes a clock until cancelled. */}
+        {scheduleMode && (
+          <m.div
+            key="schedule"
+            variants={riseIn}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="mx-auto mb-2 flex max-w-[850px] items-center gap-2 rounded-md border-l-2
+                       border-accent bg-surface/60 py-2 pl-3 pr-2"
           >
-            <X size={14} aria-hidden />
-          </button>
-        </div>
-      )}
+            <Clock size={14} className="shrink-0 text-accent" aria-hidden />
+            <span className="flex-1 text-xs text-secondary">
+              Scheduling — type your message, then tap the clock to pick a time.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setScheduleMode(false);
+              }}
+              aria-label="Cancel scheduling"
+              className="press flex size-7 shrink-0 items-center justify-center rounded-full
+                         text-muted hover:bg-surface-raised hover:text-text"
+            >
+              <X size={14} aria-hidden />
+            </button>
+          </m.div>
+        )}
 
-      {/* Reply context sits above the pill, matching where the quote will
-          appear in the sent bubble. */}
-      {replyTo && (
-        <div className="animate-rise mx-auto mb-2 flex max-w-[850px] items-center gap-2">
-          <div
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-accent
-                       bg-surface/60 py-2 pl-3 pr-2"
+        {/* Reply context sits above the pill, matching where the quote will
+            appear in the sent bubble. */}
+        {replyTo && (
+          <m.div
+            key="reply"
+            variants={riseIn}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="mx-auto mb-2 flex max-w-[850px] items-center gap-2"
           >
-            <CornerUpLeft size={14} className="shrink-0 text-accent" aria-hidden />
-            <span className="truncate text-xs text-secondary">{replyTo.preview}</span>
-          </div>
-          <button
-            type="button"
-            onClick={onCancelReply}
-            aria-label="Cancel reply"
-            className="press flex size-8 shrink-0 items-center justify-center rounded-full
-                       text-muted hover:bg-surface-raised hover:text-text"
-          >
-            <X size={15} aria-hidden />
-          </button>
-        </div>
-      )}
+            <div
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-accent
+                         bg-surface/60 py-2 pl-3 pr-2"
+            >
+              <CornerUpLeft size={14} className="shrink-0 text-accent" aria-hidden />
+              <span className="truncate text-xs text-secondary">{replyTo.preview}</span>
+            </div>
+            <button
+              type="button"
+              onClick={onCancelReply}
+              aria-label="Cancel reply"
+              className="press flex size-8 shrink-0 items-center justify-center rounded-full
+                         text-muted hover:bg-surface-raised hover:text-text"
+            >
+              <X size={15} aria-hidden />
+            </button>
+          </m.div>
+        )}
+      </AnimatePresence>
 
       {activeItems.length > 0 && (
         <div
           role="listbox"
           aria-label={active?.trigger === '@' ? 'Mention suggestions' : 'Custom emoji suggestions'}
           className="animate-rise mx-auto mb-2 max-w-[850px] overflow-hidden rounded-md border
-                     border-border bg-surface/97 shadow-lift backdrop-blur-xl"
+                     border-hairline bg-surface/97 shadow-lift backdrop-blur-xl"
         >
           {activeItems.map((item, index) => (
             <button
@@ -528,10 +569,10 @@ export function Composer({
           up as one object instead of just the text field. */}
       <div
         className={cn(
-          'mx-auto flex max-w-[850px] items-end gap-1.5 rounded-2xl border p-1.5',
-          'bg-surface/60 backdrop-blur-sm shadow-soft mb-3',
+          'mx-auto mb-3 flex max-w-[850px] items-end gap-1.5 rounded-2xl border p-1.5',
+          'bg-surface/55 backdrop-blur-md',
           'transition-[border-color,box-shadow] duration-200 ease-soft',
-          focused ? 'border-accent shadow-glow' : 'border-border hover:border-border-strong',
+          focused ? 'border-accent shadow-glow' : 'border-hairline depth hover:border-hairline-strong',
         )}
       >
         {/* One picker for both photos and video. The system file/gallery sheet
@@ -572,102 +613,40 @@ export function Composer({
             dropping below it — the composer is at the bottom of the screen, so
             downward has nowhere to go. */}
         <div className="relative shrink-0" ref={attachRef}>
-          {attachOpen && (
-            <div
-              role="menu"
-              className="glass animate-scale-in stagger absolute bottom-[calc(100%+0.75rem)] left-0
-                         w-44 origin-bottom-left overflow-hidden rounded-md border border-border
-                         shadow-lift"
-            >
-              <button
+          <Popover
+            open={attachOpen}
+            onClose={() => {
+              setAttachOpen(false);
+            }}
+            anchorRef={attachRef}
+            role="menu"
+            origin="bottom-left"
+            className="glass bottom-[calc(100%+0.75rem)] left-0 w-48 overflow-hidden rounded-md
+                       border border-hairline shadow-raised"
+          >
+            {attachItems.map((item, i) => (
+              <m.button
+                key={item.label}
                 type="button"
                 role="menuitem"
+                custom={i}
+                variants={ATTACH_ITEM}
                 onClick={() => {
                   setAttachOpen(false);
-                  fileRef.current?.click();
+                  item.action();
                 }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm
-                           transition-colors duration-150 hover:bg-surface-raised"
+                className="flex w-full items-center gap-3 border-t border-hairline px-4 py-3
+                           text-left text-sm text-secondary transition-colors duration-150
+                           first:border-t-0 hover:bg-surface-raised hover:text-text"
               >
-                <ImagePlus size={16} className="text-accent" aria-hidden />
-                Media
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAttachOpen(false);
-                  attachmentRef.current?.click();
-                }}
-                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
-                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
-              >
-                <Paperclip size={16} className="text-accent" aria-hidden />
-                File
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAttachOpen(false);
-                  // Cycles rather than opening another menu: three options is
-                  // fewer taps to step through than to pick from a submenu.
-                  const index = RETENTION_OPTIONS.findIndex((o) => o.ms === retentionMs);
-                  const next = RETENTION_OPTIONS[(index + 1) % RETENTION_OPTIONS.length];
-                  if (next) onRetentionChange(next.ms);
-                }}
-                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
-                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
-              >
-                <Timer size={16} className="text-accent" aria-hidden />
-                Disappears in
-                <span className="ml-auto text-xs text-muted">
-                  {RETENTION_OPTIONS.find((o) => o.ms === retentionMs)?.label ?? '24 hours'}
-                </span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAttachOpen(false);
-                  onOpenCamera();
-                }}
-                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
-                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
-              >
-                <Camera size={16} className="text-accent" aria-hidden />
-                Camera
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAttachOpen(false);
-                  onOpenScribble();
-                }}
-                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
-                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
-              >
-                <PenLine size={16} className="text-accent" aria-hidden />
-                Scribble
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAttachOpen(false);
-                  setScheduleMode(true);
-                }}
-                className="flex w-full items-center gap-3 border-t border-border px-4 py-3
-                           text-left text-sm transition-colors duration-150 hover:bg-surface-raised"
-              >
-                <Clock size={16} className="text-accent" aria-hidden />
-                Schedule
-              </button>
-            </div>
-          )}
+                <item.icon size={16} className="text-accent" aria-hidden />
+                {item.label}
+                {item.trailing && <span className="ml-auto text-xs text-muted">{item.trailing}</span>}
+              </m.button>
+            ))}
+          </Popover>
 
-          <button
+          <m.button
             type="button"
             onClick={() => {
               setAttachOpen((open) => !open);
@@ -676,8 +655,10 @@ export function Composer({
             aria-label="Add attachment"
             aria-expanded={attachOpen}
             aria-haspopup="menu"
+            whileTap={{ scale: 0.9 }}
+            transition={springs.snappy}
             className={cn(
-              'press flex size-10 shrink-0 items-center justify-center rounded-full',
+              'flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
               attachOpen
                 ? 'bg-accent-solid text-white shadow-glow'
                 : 'text-secondary hover:bg-surface-raised hover:text-accent',
@@ -687,18 +668,16 @@ export function Composer({
             {uploading ? (
               <Loader2 size={18} className="animate-spin text-accent" aria-hidden />
             ) : (
-              <Plus
-                size={20}
+              <m.span
                 aria-hidden
-                className={cn(
-                  'transition-transform duration-500 ease-spring',
-                  // A full half-turn INTO the cross, rather than the short 45°
-                  // hop — the extra rotation is what makes it feel deliberate.
-                  attachOpen && 'rotate-[225deg]',
-                )}
-              />
+                className="flex"
+                animate={{ rotate: attachOpen ? 225 : 0 }}
+                transition={springs.gentle}
+              >
+                <Plus size={20} aria-hidden />
+              </m.span>
             )}
-          </button>
+          </m.button>
         </div>
 
         <label htmlFor="composer" className="sr-only">

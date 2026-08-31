@@ -156,7 +156,7 @@ function DatePopover({
       aria-label="Date"
       style={{ left: pos.left, bottom: pos.bottom }}
       className="glass animate-scale-in fixed z-[60] w-60 origin-bottom-left rounded-md border
-                 border-border p-2.5 shadow-lift"
+                 border-hairline p-2.5 shadow-raised"
     >
       <p className="text-sm font-medium text-text">{absolute}</p>
       <p className="mb-2.5 flex items-center gap-1.5 text-[0.6875rem] text-accent">
