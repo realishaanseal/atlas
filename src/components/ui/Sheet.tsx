@@ -90,7 +90,7 @@ export function Sheet({
             onDragEnd={onDragEnd}
             className={cn(
               'relative z-10 mx-auto flex max-h-[92vh] w-full flex-col overflow-hidden',
-              'rounded-t-xl border-t border-hairline bg-surface pb-safe shadow-raised',
+              'sheen rounded-t-xl border-t border-hairline bg-surface pb-safe depth-lg',
               className,
             )}
           >

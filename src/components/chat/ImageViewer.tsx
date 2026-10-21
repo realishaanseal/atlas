@@ -93,7 +93,7 @@ export function ImageViewer({ url, onClose }: ImageViewerProps) {
             type="button"
             onClick={onClose}
             aria-label="Close image preview"
-            className="press glass absolute right-4 top-4 flex size-10 items-center justify-center
+            className="press panel absolute right-4 top-4 flex size-10 items-center justify-center
                        rounded-full border border-hairline text-text"
           >
             <X size={18} aria-hidden />

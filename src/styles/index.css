@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 /* Self-hosted, subsetted to Latin. Vite inlines and fingerprints the files. */
-@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/archivo/index.css';
+@import '@fontsource-variable/martian-mono/wdth.css';
 
 /* ---------------------------------------------------------------------------
    Design tokens.
@@ -9,80 +10,61 @@
    or `text-secondary` work everywhere without a config file. Colours are
    defined once here and nowhere else — no hex literals in components.
 
-   The palette is built on a blue-tinted near-black rather than neutral grey.
-   Every surface carries a trace of the accent hue, which is what stops a dark
-   UI reading as "flat black with blue bits" and makes it feel like one
-   material. The ambient glows in the body layer do the rest.
+   The finish follows the Varaxis house style, carried over to a dark,
+   working surface: a flat ink ground with no glow or grain on it, porcelain
+   text, hairline rules for structure, and colour kept for the one thing that
+   is yours — your own messages and the controls that act. What depth there is
+   comes from the material of each surface rather than from light behind it:
+   lit from the upper left, every raised thing has a bright top lip, a shaded
+   underside and a shadow falling to the lower right.
 --------------------------------------------------------------------------- */
 
 @theme {
-  /* Base. A deep, slightly cool graphite — dark enough that the ambient field
-     and the accent do the colour work, with a wider gap up to the first
-     surface so elevation reads at a glance. */
-  --color-bg: #080910;
-  --color-bg-deep: #040509;
+  /* Ink, and the steps up from it. The ground is Varaxis ink (#0b1118); each
+     step is a clear jump so elevation reads at a glance without any glow. */
+  --color-bg: #0b1118;
+  --color-bg-deep: #070b10;
+  --color-surface: #151c25;
+  --color-surface-raised: #1d2530;
+  --color-surface-panel: #121820;
 
-  /* A true elevation ladder with visible gaps: bg → surface is a ~3.3× jump in
-     luminance, surface → raised another ~2×. Rendered translucent (see .glass)
-     these pick up the ambient field behind them, which is what gives depth. */
-  --color-surface: #151824;
-  --color-surface-raised: #212533;
-  --color-surface-glass: #161b2b;
+  /* Solid border tokens, kept quiet. Most surfaces use the hairline below
+     instead — a porcelain line at low alpha, the same rule Varaxis draws on ink. */
+  --color-border: #26303c;
+  --color-border-strong: #3a4553;
+  --color-hairline: rgb(231 238 242 / 0.09);
+  --color-hairline-strong: rgb(231 238 242 / 0.17);
 
-  /* Solid border tokens, kept quiet. Most raised surfaces use the white-alpha
-     hairline below instead — an edge catching light reads as more physical
-     than a drawn outline on a dark UI. */
-  --color-border: #2a2f3f;
-  --color-border-strong: #3e4457;
+  /* A deep steel blue, the family serious messaging apps settle on, pulled
+     toward the ink's own cool hue so the two read as one palette — and
+     well clear of the saturated indigo-violet every generated UI defaults
+     to. Plain accent is the light tone, for icons, links and labels on the
+     dark ground (8:1 on surface); the solid stops are the deep tone behind
+     white text — sent bubbles, primary buttons — and each clears 4.5:1
+     against white on its own. */
+  --color-accent: #8ab4e8;
+  --color-accent-hover: #a6c6ee;
+  --color-accent-muted: #1b324d;
+  --color-accent-solid: #2f6197; /* 6.4:1 on white */
+  --color-accent-solid-deep: #27507e; /* 8.0:1 on white */
+  --color-accent-solid-hover: #3569a2; /* 5.7:1 on white */
+  --color-accent-alt: #5a88be;
 
-  /* Hairline + inner-light treatment for "material" edges: a raised panel takes
-     border-hairline all round and shadow-edge along its top. Pushed up so the
-     lit top edge actually reads. */
-  --color-hairline: rgb(255 255 255 / 0.09);
-  --color-hairline-strong: rgb(255 255 255 / 0.16);
-
-  /* Accent for icons, focus rings, borders on the dark background — a luminous
-     blue. 7.6:1 on the base, 6.8:1 on surface. */
-  --color-accent: #5aa2ff;
-  --color-accent-hover: #7cb5ff;
-  --color-accent-muted: #1e3d6e;
-
-  /* Accent used *behind white text* — sent bubbles, primary buttons.
-     The brief's #3B82F6 gives white only 3.68:1 and fails at body size.
-
-     Both gradient stops must clear 4.5:1 against white, not just one. The
-     obvious "light at the top, dark at the bottom" gradient is a trap: the
-     light stop is the one people actually read text against, and anything
-     bright enough to look luminous is too bright to be legible.
-
-     So the gradient runs from the lightest *safe* blue down to a deeper one.
-     It still reads as a lit surface — the eye takes the top edge being lighter
-     than the bottom as the cue, not the absolute brightness. */
-  --color-accent-solid: #2f6fe0; /* 4.70:1 on white — the gradient's top stop */
-  --color-accent-solid-deep: #2456b8; /* 6.78:1 on white — bottom stop */
-  --color-accent-solid-hover: #2c68d6; /* 5.17:1 on white */
-
-  /* Second hue for gradients and the ambient field — a saturated indigo-violet
-     the blue can travel to. Two hues read as depth; one reads as a spotlight. */
-  --color-accent-alt: #7d6cff;
-
-  /* Ambient glow colours, referenced by the body background and the glow
-     shadows. Named separately so a theme can retint the whole ambient field by
-     overriding just these two on :root. Brighter and more saturated than the
-     accents — this is the light source, it is allowed to be vivid. */
-  --glow-a: #3b7bf0;
-  --glow-b: #7d6cff;
-
-  --color-text: #f5f7fd;
-  --color-secondary: #adb7cc; /* 8.8:1 on surface */
-  --color-muted: #8c96ac; /* 5.9:1 on surface, 5.1:1 on raised — AA at body size */
+  /* Porcelain text on ink, then Varaxis slate for anything secondary. */
+  --color-text: #e7eef2;
+  --color-secondary: #b3bfcb; /* 8.2:1 on surface */
+  --color-muted: #96a4b3; /* 6.7:1 on surface, 6.1:1 on raised */
 
   --color-danger: #ff5a5a;
   --color-success: #34d399;
 
+  /* Archivo carries the interface; Martian Mono is the utility voice, kept
+     for labels, dates and times. Both self-hosted and subset to Latin. */
   --font-sans:
-    'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Archivo Variable', 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', sans-serif;
+  --font-mono:
+    'Martian Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   /* These use Tailwind's own theme namespaces, which is what makes real
      utilities get generated: --radius-* produces rounded-*, --ease-* produces
@@ -90,41 +72,53 @@
      arbitrary value instead relies on it surviving to the output CSS, which is
      not guaranteed. */
 
-  --radius-xs: 0.5rem;
-  --radius-sm: 0.625rem;
-  --radius-md: 0.875rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.5rem;
+  /* Tighter than a typical chat app. `md` is the Varaxis corner (10px); the
+     rest step either side of it, so nothing reads as a pill unless it is one. */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
 
-  /* Depth is built from three parts, layered: a tight contact shadow that sits
-     the object on the surface, a long soft ambient shadow that lifts it off the
-     page, and a 1px inner highlight along the top edge (shadow-edge) that reads
-     as light catching a physical lip. The tint is a near-black with a trace of
-     cool, matching --color-bg-deep — a pure-black shadow on a dark UI looks
-     like a hole punched in it, a tinted one looks like distance. */
-  --shadow-contact: 0 1px 2px rgb(2 3 8 / 0.55), 0 1px 1px rgb(2 3 8 / 0.4);
-  --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.1);
+  /* The emboss, in parts. One key light from the upper left, so a raised
+     surface has a lit top lip (shadow-edge), a shaded underside, a tight
+     contact shadow, and a soft shadow falling down and to the right. The tint
+     is near-black with a trace of the ink's blue: pure black on a dark UI reads
+     as a hole, a tinted shadow reads as distance. */
+  --shadow-edge: inset 0 1px 0 0 rgb(231 238 242 / 0.07);
+  --shadow-underside: inset 0 -1px 0 0 rgb(0 0 0 / 0.22);
+  --shadow-contact: 0 1px 1px rgb(3 6 10 / 0.5);
+  /* Pressed in rather than raised: a field cut into the surface it sits on,
+     shaded under its top edge, lit along its bottom one. */
+  --shadow-inset:
+    inset 0 1px 2px rgb(0 0 0 / 0.45),
+    inset 0 -1px 0 rgb(231 238 242 / 0.04);
 
   --shadow-soft:
-    0 1px 2px rgb(2 3 8 / 0.5),
-    0 8px 24px -8px rgb(2 3 8 / 0.6);
+    0 1px 1px rgb(3 6 10 / 0.45),
+    3px 5px 12px -4px rgb(3 6 10 / 0.5);
   --shadow-lift:
-    0 1px 2px rgb(2 3 8 / 0.55),
-    0 16px 40px -12px rgb(2 3 8 / 0.65),
-    0 44px 80px -36px rgb(2 3 8 / 0.6);
+    0 1px 2px rgb(3 6 10 / 0.5),
+    6px 14px 28px -10px rgb(3 6 10 / 0.6);
   --shadow-raised:
-    0 2px 8px -2px rgb(2 3 8 / 0.55),
-    0 30px 64px -20px rgb(2 3 8 / 0.7),
+    0 1px 2px rgb(3 6 10 / 0.5),
+    10px 24px 52px -18px rgb(3 6 10 / 0.7),
     var(--shadow-edge);
 
-  --shadow-glow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.18),
-    0 6px 24px -4px color-mix(in oklab, var(--glow-a) 55%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--color-accent) 28%, transparent);
-  --shadow-glow-strong:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.24),
-    0 10px 40px -6px color-mix(in oklab, var(--glow-a) 72%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--color-accent) 42%, transparent);
+  /* An accent control — a sent bubble, the send button, a primary action. The
+     same press as Scholar's graphite button: a bright inner lip, a darker
+     inner base, and a 1px ring in a deeper shade of the accent so the edge is
+     crisp against ink. No coloured halo. */
+  --shadow-accent:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.2),
+    inset 0 -1px 0 0 rgb(0 0 0 / 0.18),
+    0 0 0 1px color-mix(in oklab, var(--color-accent-solid-deep) 70%, black),
+    0 1px 2px rgb(3 6 10 / 0.45);
+  --shadow-accent-strong:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.26),
+    inset 0 -1px 0 0 rgb(0 0 0 / 0.18),
+    0 0 0 1px color-mix(in oklab, var(--color-accent-solid-deep) 70%, black),
+    0 3px 10px -4px rgb(3 6 10 / 0.6);
 
   /* Motion. `soft` for most things; `spring` overshoots slightly and is what
      makes a button press feel physical rather than merely animated.
@@ -179,74 +173,19 @@
     color: var(--color-text);
     font-family: var(--font-sans);
     font-synthesis-weight: none;
+    font-kerning: normal;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
     overflow: hidden;
 
-    /* The ambient field, layer 1 — a fixed vertical base plus two static
-       corner glows, painted by the compositor at no runtime cost. The moving
-       part lives in body::after. */
+    /* Plain ink. The ground carries no glow, mesh or grain: depth belongs to
+       the surfaces on it. A wallpaper, when set, replaces this inline
+       (utils/theme.ts). */
     background-color: var(--color-bg);
-    background-image:
-      radial-gradient(
-        ellipse 110% 80% at 8% -20%,
-        color-mix(in oklab, var(--glow-a) 32%, transparent) 0%,
-        transparent 62%
-      ),
-      radial-gradient(
-        ellipse 90% 65% at 95% 108%,
-        color-mix(in oklab, var(--glow-b) 26%, transparent) 0%,
-        transparent 60%
-      ),
-      linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
-    background-attachment: fixed;
   }
 
-  /* The ambient field, layer 2 — two big blurred blobs that drift very slowly,
-     so a "solid" dark screen is quietly alive. Transform-only, so it is
-     compositor-cheap and the reduced-motion rule freezes it in place. Rendered
-     before body::after (the grain), so the grain sits over it; both are below
-     #root, which has its own z-index. */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: -25%;
-    z-index: 0;
-    pointer-events: none;
-    background-image:
-      radial-gradient(
-        ellipse 42% 42% at 24% 22%,
-        color-mix(in oklab, var(--glow-a) 42%, transparent) 0%,
-        transparent 70%
-      ),
-      radial-gradient(
-        ellipse 48% 48% at 80% 74%,
-        color-mix(in oklab, var(--glow-b) 34%, transparent) 0%,
-        transparent 70%
-      );
-    filter: blur(44px);
-    animation: ambient-drift 48s ease-in-out infinite alternate;
-    will-change: transform;
-  }
-
-  /* A faint film of grain over the ambient field. One tiling SVG turbulence at
-     an opacity where you feel it rather than see it — it keeps the large dark
-     gradients from banding and gives flat surfaces something to catch. It does
-     not move; reduced motion leaves it. */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0.05;
-    background-repeat: repeat;
-    background-size: 130px 130px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
-  /* The app content sits in its own stacking context above the grain. */
+  /* The app content sits in its own stacking context. */
   #root {
     position: relative;
     z-index: 1;
@@ -254,13 +193,15 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-text);
     outline-offset: 2px;
     border-radius: var(--radius-xs);
   }
 
+  /* Inverted, as Varaxis does it: porcelain behind ink. */
   ::selection {
-    background-color: color-mix(in oklab, var(--color-accent) 40%, transparent);
+    background-color: var(--color-text);
+    color: var(--color-bg);
   }
 
   /* Scrollbars, so they don't punch a light hole in a dark UI. */
@@ -369,30 +310,48 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Frosted panel. The saturate() is the part people can't name but can see —
-     it stops backdrop blur from washing the colour out of what's behind it.
-     Transparent enough and blurred hard enough that a panel reads as a real
-     pane of glass with the ambient field moving behind it, plus a hairline top
-     highlight so the edge catches light. */
-  .glass {
-    background-color: color-mix(in srgb, var(--color-surface-glass) 58%, transparent);
-    backdrop-filter: blur(32px) saturate(180%);
-    -webkit-backdrop-filter: blur(32px) saturate(180%);
+  /* A panel: the header, the composer, menus, popovers. Solid, so what
+     scrolls beneath it never reads through — there is no frosted glass in
+     this design — and carrying the same sheen as any other raised surface.
+
+     Solid matters for more than taste. A menu opens inside the header, and a
+     backdrop blur nested inside another one cannot see past its parent, so a
+     translucent menu let the bubbles under it show through unblurred. */
+  .panel {
+    background-color: var(--color-surface-panel);
+    background-image: linear-gradient(
+      145deg,
+      rgb(231 238 242 / 0.035) 0%,
+      rgb(231 238 242 / 0) 55%
+    );
   }
 
-  /* The standard "raised material" treatment: contact + ambient shadow plus a
-     1px inner highlight along the top edge. Cards, bubbles, menus, chips —
+  /* Light falling across a surface from the upper left, fading out by the
+     middle. Scholar's cards carry the same sheen on cream; on ink it is a
+     few percent of porcelain. Layered over whatever background colour the
+     element already has. */
+  .sheen {
+    background-image: linear-gradient(
+      145deg,
+      rgb(231 238 242 / 0.045) 0%,
+      rgb(231 238 242 / 0) 55%
+    );
+  }
+
+  /* The standard raised material: the lit top lip, the shaded underside, and
+     a shadow falling to the lower right. Cards, bubbles, menus, chips —
      anything meant to sit above the surface it is on. `.depth-lg` is the same
      idea with more distance, for modals and sheets. */
   .depth {
-    box-shadow: var(--shadow-soft), var(--shadow-edge);
+    box-shadow: var(--shadow-soft), var(--shadow-edge), var(--shadow-underside);
   }
   .depth-lg {
-    box-shadow: var(--shadow-raised);
+    box-shadow: var(--shadow-raised), var(--shadow-underside);
   }
 
-  /* A hairline highlight along the top edge. Real materials catch light on
-     their upper surface; this is one line of CSS that sells "physical". */
+  /* The top edge catching the key light: brightest at the upper left,
+     fading across. Real materials catch light on their upper surface; this is
+     one line of CSS that sells "physical". */
   .edge-light {
     position: relative;
   }
@@ -401,14 +360,37 @@
     position: absolute;
     inset: 0 0 auto 0;
     height: 1px;
+    /* Clear at the very left so it never runs past a rounded corner. */
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgb(255 255 255 / 0.12) 30%,
-      rgb(255 255 255 / 0.12) 70%,
+      rgb(231 238 242 / 0.16) 10%,
+      rgb(231 238 242 / 0.06) 60%,
       transparent 100%
     );
     pointer-events: none;
+  }
+
+  /* Figures — times, counts — in the same mono at the same condensed width,
+     but without the capitals and tracking: tabular, so a column of times
+     lines up and a live counter does not jitter. */
+  .figures {
+    font-family: var(--font-mono);
+    font-stretch: 87.5%;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  /* The Varaxis utility voice: Martian Mono, slightly condensed, uppercase and
+     tracked out. Dates, section labels, small status. */
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 450;
+    font-stretch: 87.5%;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+    text-transform: uppercase;
   }
 
   .animate-rise {
@@ -552,18 +534,6 @@
     transform: translateY(-2px);
   }
 
-  /* A slow drift, for ambient decoration only. */
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
-  }
-
-  /* Living gradient. The background is oversized and slides, so a "solid"
-     accent surface subtly moves — used on primary buttons. */
-  .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient-drift 6s ease infinite;
-  }
-
   /* Attention pulse: a ring that breathes outward. Pings, active call. */
   .animate-pulse-ring {
     animation: pulse-ring 2s ease-out infinite;
@@ -655,29 +625,6 @@
   }
 }
 
-/* Sweep of light across the send button on hover. */
-@keyframes shimmer {
-  from {
-    transform: translateX(-120%) skewX(-20deg);
-  }
-  to {
-    transform: translateX(320%) skewX(-20deg);
-  }
-}
-
-/* Slow breathing glow behind the lock screen title. */
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.08);
-  }
-}
-
 /* --- motion vocabulary keyframes ----------------------------------------- */
 
 @keyframes scale-in {
@@ -754,28 +701,6 @@
   to {
     opacity: 0;
     transform: scale(2.1);
-  }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes gradient-drift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
   }
 }
 
@@ -859,15 +784,3 @@
   }
 }
 
-/* The slow wander of the ambient glow layer (body::before). Transform only. */
-@keyframes ambient-drift {
-  0% {
-    transform: translate3d(-4%, -2%, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(3%, 4%, 0) scale(1.12);
-  }
-  100% {
-    transform: translate3d(5%, -1%, 0) scale(1.04);
-  }
-}

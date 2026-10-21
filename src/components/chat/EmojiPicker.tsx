@@ -94,10 +94,7 @@ export function EmojiPicker({
       aria-label="Choose an emoji"
       className={cn(
         'animate-scale-in absolute z-30 w-[min(22rem,84vw)] overflow-hidden rounded-md',
-        // Near-opaque, not glass: this panel is a dense grid of glyphs and
-        // sits over message bubbles. At normal glass opacity the content
-        // behind reads through it as ghosting.
-        'border border-hairline bg-surface/95 shadow-raised backdrop-blur-xl',
+        'panel border border-hairline depth-lg',
         // Opens UPWARD by default. Every anchor for this picker — the composer
         // and the reaction bar — sits near the bottom of the screen, so
         // downward is off-screen. Callers can override via className.

@@ -110,8 +110,8 @@ export function ScheduleModal({ open, onConfirm, onClose }: ScheduleModalProps) 
           transition={springs.snappy}
           className={cn(
             'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm',
-            'font-medium text-white shadow-glow',
-            'animate-gradient bg-gradient-to-br from-accent-solid via-accent-solid-hover to-accent-solid-deep disabled:opacity-40 disabled:shadow-none',
+            'font-medium text-white shadow-accent',
+            'bg-gradient-to-b from-accent-solid to-accent-solid-deep disabled:opacity-40 disabled:shadow-none',
           )}
         >
           <Clock size={15} aria-hidden />

@@ -148,7 +148,7 @@ export function BulkReactionsModal({
             <>
               {customEmoji.length > 0 && (
                 <section className="mb-3">
-                  <h3 className="mb-1.5 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+                  <h3 className="mb-1.5 mono text-muted">
                     Custom
                   </h3>
                   <div className="grid grid-cols-8 gap-1">
@@ -165,7 +165,7 @@ export function BulkReactionsModal({
 
               {EMOJI_CATEGORIES.map((category) => (
                 <section key={category.name} className="mb-3">
-                  <h3 className="mb-1.5 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+                  <h3 className="mb-1.5 mono text-muted">
                     {category.name}
                   </h3>
                   <div className="grid grid-cols-8 gap-1">

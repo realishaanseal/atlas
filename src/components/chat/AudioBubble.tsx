@@ -101,7 +101,7 @@ export function AudioBubble({ cryptoKey, payload, mine }: AudioBubbleProps) {
         aria-label={playing ? 'Pause voice message' : 'Play voice message'}
         className={cn(
           'press flex size-9 shrink-0 items-center justify-center rounded-full',
-          mine ? 'bg-white/20 text-white' : 'bg-accent-solid text-white shadow-glow',
+          mine ? 'bg-white/20 text-white' : 'bg-accent-solid text-white shadow-accent',
         )}
       >
         {loading ? (

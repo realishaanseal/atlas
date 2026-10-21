@@ -155,7 +155,7 @@ export function Header({
   ];
 
   return (
-    <header className="glass sticky top-0 z-10 border-b border-hairline pt-safe">
+    <header className="panel sticky top-0 z-10 border-b border-hairline pt-safe">
       <div className="mx-auto flex h-14 max-w-[850px] items-center justify-between px-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="min-w-0">
@@ -350,7 +350,7 @@ export function Header({
               anchorRef={menuRef}
               role="menu"
               origin="top-right"
-              className="glass right-0 top-12 w-60 overflow-hidden rounded-md border border-hairline
+              className="panel right-0 top-12 w-60 overflow-hidden rounded-md border border-hairline
                          shadow-raised"
             >
               {menuItems.map((item, i) => (

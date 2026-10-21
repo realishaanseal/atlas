@@ -61,7 +61,7 @@ export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         <div className="overflow-y-auto p-4">
-          <p className="mb-2 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+          <p className="mb-2 mono text-muted">
             Presets
           </p>
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
@@ -94,7 +94,7 @@ export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => 
             })}
           </div>
 
-          <p className="mb-2 mt-5 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+          <p className="mb-2 mt-5 mono text-muted">
             From an image
           </p>
           <button
@@ -116,7 +116,7 @@ export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => 
             <span className="flex-1">
               {accent.kind === 'custom' ? 'Custom theme active' : 'Upload a photo'}
               <span className="block text-[0.6875rem] text-muted">
-                The accent and glow are set from the picture's colours.
+                The accent colour is taken from the picture.
               </span>
             </span>
             {accent.kind === 'custom' && <Check size={16} className="text-accent" aria-hidden />}
@@ -136,7 +136,7 @@ export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => 
 
           {error !== null && <p className="mt-2 text-xs text-danger">{error}</p>}
 
-          <p className="mb-2 mt-5 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+          <p className="mb-2 mt-5 mono text-muted">
             Background
           </p>
           <div className="grid grid-cols-6 gap-3">
@@ -229,9 +229,9 @@ export function ThemeManager({ open, onClose }: { open: boolean; onClose: () => 
           </div>
 
           <p className="mt-4 text-[0.625rem] leading-relaxed text-muted">
-            The accent theme shifts the highlight and glow; the background sets the base tint. Any
-            background is kept dark so the text stays readable. Everything here is stored on this
-            device only and is never sent anywhere.
+            The accent sets the colour of your messages and controls; the background sets the base
+            tint. Any background is kept dark so the text stays readable. Everything here is stored
+            on this device only and is never sent anywhere.
           </p>
         </div>
       </div>

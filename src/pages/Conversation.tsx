@@ -694,7 +694,7 @@ export default function Conversation({ cryptoKey, slot, uid, onLock }: Conversat
               exit={{ opacity: 0, y: 8, scale: 0.8, transition: { duration: 0.14 } }}
               transition={springs.snappy}
               whileTap={{ scale: 0.9 }}
-              className="glass pointer-events-auto flex size-9 items-center justify-center rounded-full
+              className="panel pointer-events-auto flex size-9 items-center justify-center rounded-full
                          border border-hairline text-secondary depth-lg transition-colors
                          duration-150 hover:text-text"
             >

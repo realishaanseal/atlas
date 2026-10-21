@@ -11,13 +11,10 @@ export function DateSeparator({ timestamp }: { timestamp: number }) {
       className="my-3 flex items-center gap-3"
       role="separator"
     >
+      {/* A label on a rule, as Varaxis heads a section: no pill, just the
+          utility voice between two hairlines. */}
       <span className="h-px flex-1 bg-hairline" />
-      <span
-        className="glass rounded-full border border-hairline px-3 py-1 text-[0.6875rem]
-                   font-medium text-secondary shadow-contact"
-      >
-        {formatDayLabel(timestamp)}
-      </span>
+      <span className="mono text-muted">{formatDayLabel(timestamp)}</span>
       <span className="h-px flex-1 bg-hairline" />
     </m.div>
   );
@@ -34,7 +31,7 @@ export function UnreadSeparator() {
       aria-label="New messages"
     >
       <span className="h-px flex-1 bg-accent/45" />
-      <span className="text-[0.6875rem] font-medium uppercase tracking-wider text-accent">New</span>
+      <span className="mono text-accent">New</span>
       <span className="h-px flex-1 bg-accent/45" />
     </m.div>
   );
