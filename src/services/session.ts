@@ -60,9 +60,8 @@ export async function setup(passphrase: string): Promise<UnlockedSession> {
 export async function unlock(passphrase: string): Promise<UnlockedSession> {
   const delay = await throttle.getDelayMs();
   if (delay > 0) {
-    // The remaining seconds travel as the message; the wording is chosen by
-    // whichever screen is asking, since the public site and the passphrase
-    // screen describe the same condition very differently.
+    // The remaining seconds travel as the message; the lock screen chooses
+    // the wording.
     throw new AppError('rate-limited', String(Math.ceil(delay / 1000)));
   }
 

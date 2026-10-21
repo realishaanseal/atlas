@@ -8,13 +8,8 @@
 /**
  * The name shown anywhere the operating system or the browser can see it: the
  * tab title, desktop notifications, the call screen.
- *
- * It matches the public site rather than the app on purpose. A notification
- * that reads "Atlas" on a lock screen, or a tab title that changes the moment
- * you unlock, undoes the concealment in the one place you cannot control who
- * is looking.
  */
-export const APP_NAME = 'MechCodes';
+export const APP_NAME = 'Atlas';
 
 /**
  * Message and media lifetime — also the maximum the Security Rules permit.
@@ -535,7 +530,6 @@ export const PASSPHRASE = {
  *
  * The only part of this app that renders outside the page, where the operating
  * system decides who sees it — a locked phone, a mirrored display, a shoulder.
- * Everything shown there is chosen to be consistent with the public site.
  */
 export const NOTIFICATIONS = {
   /** Put the message text in the notification body. Off: it is drawn by the OS. */
