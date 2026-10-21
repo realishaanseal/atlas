@@ -1,25 +1,35 @@
 # Atlas
 
+[![CI](https://github.com/realishaanseal/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/realishaanseal/atlas/actions/workflows/ci.yml)
+
 A private, end-to-end encrypted workspace for exactly two people.
 
-Messages, images, GIFs and voice notes are encrypted in the browser with
-AES-256-GCM before they touch the network. The server stores ciphertext and
-nothing else. Everything expires after 30 days.
+Messages, photos, video, files and voice notes are encrypted in the browser
+with AES-256-GCM before they touch the network. The server stores ciphertext
+and nothing else, and messages expire after 30 days — sooner if you choose.
+It runs entirely on free tiers.
+
+![Atlas on desktop and phone](docs/screenshots/hero.png)
+
+**Built with** React 19 · TypeScript · Vite · Tailwind CSS v4 · Web Crypto API ·
+WebRTC · Firebase (Firestore, Anonymous Auth, Hosting, Security Rules)
 
 ---
 
 ## What it does
 
-**Messaging** — real-time, with typing indicators, read receipts, online
-status and last-seen. Messages queue in an offline outbox and flush on
-reconnect.
+**Messaging** — real-time, with typing indicators, delivery and read receipts,
+online status and last seen. Messages queue in an offline outbox and flush on
+reconnect. Edit, schedule up to a week ahead, or set a message to disappear
+sooner than 30 days.
 
-**Images** — compressed, stripped of EXIF, encrypted, sent. Drag-drop, paste,
-or capture from your camera. Tap for a fullscreen viewer.
+**Photos, video and files** — photos are compressed and stripped of EXIF;
+video and files are chunked. All of it is encrypted before upload. Drag and
+drop, paste, or capture from your camera.
 
 **GIFs** — search Giphy, or send your own. Picked GIFs are downloaded,
-encrypted, and stored like any other image, so the recipient never contacts
-Giphy. Favourites are saved locally, including GIFs from the conversation.
+encrypted and stored like any other image, so the recipient never contacts
+Giphy.
 
 **Voice notes** — up to two minutes, Opus at 24 kbps, with a waveform sampled
 live while recording.
@@ -27,10 +37,20 @@ live while recording.
 **Voice and video calls** — WebRTC, peer-to-peer. Media never touches a server,
 and the signalling is encrypted too, so the database never sees an IP address.
 
-**Replies and reactions** — swipe right on touch or hover on desktop to reply.
-React with any emoji; both people's reactions group with a count.
+**Replies, reactions and pins** — swipe right on touch or hover on desktop to
+reply. React with any emoji, pin what matters, and search the conversation —
+on-device, without asking the server anything.
 
-**Two devices only.** No accounts, no signup, no groups.
+**Your own look** — accent and background themes, a shared custom emoji pack,
+and doodles drawn straight onto messages.
+
+**A keepsake** — one side keeps a local archive that outlives the 30-day
+expiry, and can export it as a single HTML file that opens offline, forever.
+
+**Two people, nobody else.** No accounts, no signup, no groups. One side can
+link up to three of their own devices.
+
+![Setting a passphrase, the conversation, and themes on a phone](docs/screenshots/screens.png)
 
 ---
 
@@ -113,9 +133,9 @@ Without a Giphy key the GIF button is hidden rather than broken.
 `npm run deploy` builds, deploys Security Rules, and publishes to Firebase
 Hosting in one step. Your site is at `<project-id>.web.app`.
 
-Hosting is free on Spark: 10 GB storage, 10 GB/month transfer. The app is
-~250 KB gzipped per load and media goes through Firestore rather than Hosting,
-so that is roughly 40,000 page loads a month.
+Hosting is free on Spark: 10 GB storage, 10 GB/month transfer. A full
+unlocked session is about 330 KB gzipped, and media goes through Firestore
+rather than Hosting, so that is roughly 30,000 sessions a month.
 
 Quotas on Spark **block** rather than bill. There is no card attached and no
 way to run up a charge.
@@ -150,5 +170,17 @@ signalling is encrypted, so the database never sees an IP address.
 - **GIFs skip EXIF stripping**, because a canvas re-encode would destroy the
   animation. Giphy results carry no metadata; a GIF from elsewhere might.
 - **Search terms in the GIF panel go to Giphy.** Nothing else does.
+- **The local archive is not encrypted.** It is a keepsake on one device, on by
+  default and pausable under *Chat archive*; anyone with that unlocked device
+  can read it.
 
-See ARCHITECTURE.md for the full decision record.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how it is built and why, and
+[SECURITY.md](SECURITY.md) for the threat model.
+
+---
+
+## Licence
+
+Source-available under the [Atlas Non-Commercial Licence](LICENSE): free to
+use, study and modify for personal, educational and research purposes, with
+credit. Commercial use needs written permission.
