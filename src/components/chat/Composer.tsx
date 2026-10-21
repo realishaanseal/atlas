@@ -374,7 +374,7 @@ export function Composer({
     const nearLimit = recorder.elapsedMs > AUDIO.MAX_DURATION_MS - 15_000;
 
     return (
-      <div className="glass edge-light border-t border-hairline px-3 py-3 pb-safe">
+      <div className="panel edge-light border-t border-hairline px-3 py-3 pb-safe">
         <div className="mx-auto max-w-[850px] pb-3">
           <div
             className={cn(
@@ -436,7 +436,7 @@ export function Composer({
               aria-label="Send voice message"
               className="press flex size-10 shrink-0 items-center justify-center rounded-full
                          bg-gradient-to-b from-accent-solid to-accent-solid-deep text-white
-                         shadow-glow hover:shadow-glow-strong"
+                         shadow-accent hover:shadow-accent-strong"
             >
               <ArrowUp size={18} aria-hidden />
             </button>
@@ -453,7 +453,7 @@ export function Composer({
   // --- normal state --------------------------------------------------------
 
   return (
-    <div className="glass edge-light border-t border-hairline px-3 py-3 pb-safe">
+    <div className="panel edge-light border-t border-hairline px-3 py-3 pb-safe">
       <AnimatePresence>
         {/* Schedule-mode banner: the send button becomes a clock until cancelled. */}
         {scheduleMode && (
@@ -567,10 +567,10 @@ export function Composer({
           up as one object instead of just the text field. */}
       <div
         className={cn(
-          'mx-auto mb-3 flex max-w-[850px] items-end gap-1.5 rounded-2xl border p-1.5',
-          'bg-surface/55 backdrop-blur-md',
-          'transition-[border-color,box-shadow] duration-200 ease-soft',
-          focused ? 'border-accent shadow-glow' : 'border-hairline depth hover:border-hairline-strong',
+          'mx-auto mb-3 flex max-w-[850px] items-end gap-1.5 rounded-xl border p-1.5',
+          'sheen bg-surface depth',
+          'transition-[border-color] duration-200 ease-soft',
+          focused ? 'border-accent/70' : 'border-hairline hover:border-hairline-strong',
         )}
       >
         {/* One picker for both photos and video. The system file/gallery sheet
@@ -619,8 +619,8 @@ export function Composer({
             anchorRef={attachRef}
             role="menu"
             origin="bottom-left"
-            className="glass bottom-[calc(100%+0.75rem)] left-0 w-48 overflow-hidden rounded-md
-                       border border-hairline shadow-raised"
+            className="panel bottom-[calc(100%+0.75rem)] left-0 w-56 overflow-hidden rounded-md
+                       border border-hairline depth-lg"
           >
             {attachItems.map((item, i) => (
               <m.button
@@ -639,7 +639,11 @@ export function Composer({
               >
                 <item.icon size={16} className="text-accent" aria-hidden />
                 {item.label}
-                {item.trailing && <span className="ml-auto text-xs text-muted">{item.trailing}</span>}
+                {item.trailing && (
+                  <span className="figures ml-auto whitespace-nowrap text-xs text-muted">
+                    {item.trailing}
+                  </span>
+                )}
               </m.button>
             ))}
           </Popover>
@@ -658,7 +662,7 @@ export function Composer({
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
               attachOpen
-                ? 'bg-accent-solid text-white shadow-glow'
+                ? 'bg-accent-solid text-white shadow-accent'
                 : 'text-secondary hover:bg-surface-raised hover:text-accent',
               'disabled:opacity-40 disabled:hover:bg-transparent',
             )}
@@ -872,26 +876,13 @@ export function Composer({
             'press group relative flex size-10 shrink-0 items-center justify-center rounded-full',
             canSend
               ? cn(
-                  'animate-gradient bg-gradient-to-br from-accent-solid via-accent-solid-hover',
-                  'to-accent-solid-deep text-white shadow-glow hover:shadow-glow-strong',
-                  'hover:scale-105',
+                  'bg-gradient-to-b from-accent-solid to-accent-solid-deep text-white',
+                  'shadow-accent hover:shadow-accent-strong',
                 )
               : 'bg-surface-raised/80 text-secondary hover:bg-surface-raised hover:text-accent',
             'disabled:opacity-40',
           )}
         >
-          {canSend && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
-            >
-              <span
-                className="absolute inset-y-0 w-1/2 bg-white/25 opacity-0 blur-md
-                           group-hover:opacity-100 group-hover:[animation:shimmer_800ms_ease-out]"
-              />
-            </span>
-          )}
-
           {/* The shockwave left behind by a send. Outside the clipped layer so
               it can expand past the button, and keyed so every send replays. */}
           {launchKey > 0 && (

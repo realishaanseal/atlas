@@ -87,7 +87,7 @@ export function Overlay({
             className={cn(
               'relative z-10 overflow-hidden',
               size,
-              !bare && 'rounded-lg border border-hairline bg-surface shadow-raised',
+              !bare && 'sheen rounded-lg border border-hairline bg-surface depth-lg',
               className,
             )}
           >

@@ -196,7 +196,7 @@ export function WallpaperCrop({ file, onApply, onCancel }: WallpaperCropProps) {
             disabled={!ready}
             className="press flex flex-1 items-center justify-center gap-1.5 rounded-md
                        bg-gradient-to-b from-accent-solid to-accent-solid-deep py-2.5 text-sm
-                       font-medium text-white shadow-glow disabled:opacity-40"
+                       font-medium text-white shadow-accent disabled:opacity-40"
           >
             <Check size={15} aria-hidden />
             Apply

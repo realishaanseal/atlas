@@ -303,26 +303,6 @@ export function CallScreen({
       aria-label={`${isVideo ? 'Video' : 'Voice'} call`}
       className="animate-scale-in fixed inset-0 z-50 flex flex-col bg-bg-deep/97 backdrop-blur-md"
     >
-      {/* Ambient field, matching the lock screen. Without it a voice call is a
-          flat black rectangle with an icon in the middle. Hidden once remote
-          video fills the frame, where it would only muddy the picture. */}
-      {!showRemoteVideo && (
-        <>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/3 size-[460px] -translate-x-1/2
-                       -translate-y-1/2 rounded-full bg-accent-solid/20 blur-[110px]"
-            style={{ animation: 'pulse-glow 7s var(--ease-soft) infinite' }}
-          />
-          <div
-            aria-hidden
-            className="animate-float pointer-events-none absolute bottom-24 left-1/2 size-[280px]
-                       -translate-x-[70%] rounded-full blur-[90px]"
-            style={{ backgroundColor: 'color-mix(in oklab, var(--glow-b) 20%, transparent)' }}
-          />
-        </>
-      )}
-
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {showRemoteVideo ? (
           <>

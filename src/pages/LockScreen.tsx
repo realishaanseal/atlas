@@ -43,10 +43,11 @@ function describe(reason: SessionReason): string {
  * strength people will tolerate, which matters a lot in a design with no
  * forward secrecy.
  *
- * The motion here is deliberately richer than the rest of the app: this is the
- * one screen seen cold, with nothing else on it, and it sets the tone. Every
- * effect is transform/opacity only, and all of it is disabled by the global
- * reduced-motion rule.
+ * This is the one screen seen cold, with nothing else on it, so it sets the
+ * tone — and does it with material rather than motion: an embossed card on
+ * plain ink, a field pressed into it. The only movement is functional (the
+ * card arriving, a shake on a wrong password), and the global reduced-motion
+ * rule disables both.
  */
 export default function LockScreen({ status, reason, onSubmit }: LockScreenProps) {
   const message = reason === null ? null : describe(reason);
@@ -88,65 +89,22 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
     previousMessage.current = message;
   }, [message]);
 
-  /**
-   * Pointer parallax. The card tilts a few degrees toward the cursor, which
-   * makes the glass read as a physical pane rather than a flat rectangle.
-   * Fine pointers only — on touch there is no hover, and a tilt that only
-   * happens mid-drag is just noise.
-   */
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-
-  const onPointerMove = (event: React.PointerEvent) => {
-    if (event.pointerType !== 'mouse') return;
-    const rect = cardRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const px = (event.clientX - rect.left) / rect.width - 0.5;
-    const py = (event.clientY - rect.top) / rect.height - 0.5;
-    // Gentle — half the old amplitude. A hint that the glass is a physical
-    // pane, not a thing that chases the cursor.
-    setTilt({ x: -py * 3.5, y: px * 3.5 });
-  };
-
   const strength = assessment?.level ?? null;
   const strengthSteps = strength === 'strong' ? 3 : strength === 'fair' ? 2 : value.length > 0 ? 1 : 0;
 
   return (
     <main className="relative flex min-h-full items-center justify-center overflow-hidden px-6 pt-safe pb-safe">
-      {/* Two drifting glows rather than one. A single pulsing circle reads as a
-          spotlight; two, moving at different rates, read as depth. Decorative
-          and non-interactive. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 size-[420px] -translate-x-1/2
-                   -translate-y-1/2 rounded-full bg-accent-solid/20 blur-[100px]"
-        style={{ animation: 'pulse-glow 6s var(--ease-soft) infinite' }}
-      />
-      <div
-        aria-hidden
-        className="animate-float pointer-events-none absolute left-1/2 top-1/2 size-[300px]
-                   -translate-x-[30%] -translate-y-[70%] rounded-full blur-[90px]"
-        style={{ backgroundColor: 'color-mix(in oklab, var(--glow-b) 22%, transparent)' }}
-      />
-
       <div className="animate-scale-in relative w-full max-w-[360px]">
+        {/* One embossed card on plain ink. Nothing behind it moves or glows:
+            the material of the card is the whole effect. */}
         <div
-          ref={cardRef}
-          onPointerMove={onPointerMove}
-          onPointerLeave={() => {
-            setTilt({ x: 0, y: 0 });
-          }}
           onAnimationEnd={() => {
             setShaking(false);
           }}
           className={cn(
-            'glass edge-light rounded-xl border border-hairline p-7 depth-lg',
-            'transition-[transform,box-shadow] duration-300 ease-soft',
+            'sheen edge-light rounded-xl border border-hairline bg-surface p-7 depth-lg',
             shaking && 'animate-shake',
           )}
-          style={{
-            transform: `perspective(900px) rotateX(${String(tilt.x)}deg) rotateY(${String(tilt.y)}deg)`,
-          }}
         >
           <header className="mb-7 flex flex-col items-center text-center">
             {/* The padlock is the one piece of state you can read at a glance:
@@ -156,7 +114,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                 'mb-3 flex size-12 items-center justify-center rounded-full border transition-all',
                 'duration-500 ease-spring',
                 busy
-                  ? 'scale-105 border-accent bg-accent-muted/40 text-accent shadow-glow'
+                  ? 'border-accent/60 bg-accent-muted/40 text-accent'
                   : focused
                     ? 'border-accent/60 bg-surface-raised text-accent'
                     : 'border-hairline bg-surface-raised text-secondary',
@@ -165,8 +123,10 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
               {busy ? <LockOpen size={20} aria-hidden /> : <Lock size={20} aria-hidden />}
             </span>
 
-            <h1 className="text-[1.5rem] font-semibold tracking-[-0.03em]">{APP_NAME}</h1>
-            <p className="mt-1.5 text-sm text-secondary">
+            <h1 className="text-[1.75rem] font-medium leading-none tracking-[-0.02em]">
+              {APP_NAME}
+            </h1>
+            <p className="mono mt-2.5 text-muted">
               {isSetup ? 'Choose a password to begin' : 'Private workspace'}
             </p>
           </header>
@@ -210,12 +170,12 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                   aria-describedby={message !== null || assessment !== null ? messageId : undefined}
                   aria-invalid={message !== null || undefined}
                   className={cn(
-                    'h-12 w-full rounded-md border bg-surface/70 pl-4 pr-11 text-base text-text',
-                    'backdrop-blur-sm placeholder:text-muted focus:outline-none disabled:opacity-60',
+                    'h-12 w-full rounded-md border bg-bg pl-4 pr-11 text-base text-text shadow-inset',
+                    'placeholder:text-muted focus:outline-none disabled:opacity-60',
                     'transition-[border-color,box-shadow,transform] duration-200 ease-soft',
                     message
                       ? 'border-danger focus:border-danger'
-                      : 'border-hairline hover:border-hairline-strong focus:border-accent focus:shadow-glow',
+                      : 'border-hairline hover:border-hairline-strong focus:border-accent/70',
                   )}
                 />
 
@@ -287,7 +247,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
 
             <Button
               type="submit"
-              className={cn('w-full', canSubmit && 'animate-gradient bg-[length:200%_200%]')}
+              className="w-full"
               disabled={!canSubmit}
               loading={busy}
             >

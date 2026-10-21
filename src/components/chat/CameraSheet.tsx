@@ -119,7 +119,7 @@ export function CameraSheet({ onCapture, onClose }: CameraSheetProps) {
           type="button"
           onClick={onClose}
           aria-label="Close camera"
-          className="press glass mt-3 flex size-10 items-center justify-center rounded-full
+          className="press panel mt-3 flex size-10 items-center justify-center rounded-full
                      border border-hairline text-text"
         >
           <X size={18} aria-hidden />
@@ -130,7 +130,7 @@ export function CameraSheet({ onCapture, onClose }: CameraSheetProps) {
             setFacing((f) => (f === 'user' ? 'environment' : 'user'));
           }}
           aria-label="Switch camera"
-          className="press glass mt-3 flex size-10 items-center justify-center rounded-full
+          className="press panel mt-3 flex size-10 items-center justify-center rounded-full
                      border border-hairline text-text"
         >
           <SwitchCamera size={18} aria-hidden />

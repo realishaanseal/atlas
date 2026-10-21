@@ -58,10 +58,10 @@ function timeLabel(timestamp: number): string {
 /**
  * Delivery state, rendered inside our own (accent-coloured) bubble.
  *
- * One tick sent, two delivered, two tinted read — the convention everyone
- * already knows. The colour cannot be the usual blue: the bubble is ITSELF an
- * accent-blue gradient, so blue-on-blue would be invisible. A bright cyan reads
- * clearly against it and still says "different, and further along".
+ * One tick sent, two delivered, two bright read — the convention everyone
+ * already knows, kept monochrome. A tinted "read" tick has to fight whatever
+ * accent the bubble is in; full white against the dimmed delivered ticks says
+ * "further along" on every theme without adding a colour to the bubble.
  *
  * Colour never carries the meaning alone regardless — the glyph (one check vs
  * two) and the opacity do, so the state survives being seen in greyscale.
@@ -73,9 +73,9 @@ function StateIcon({ state }: { state: Message['state'] }) {
     case 'failed':
       return <AlertCircle size={13} className="text-white" aria-label="Failed to send" />;
     case 'read':
-      return <CheckCheck size={14} className="text-cyan-300" aria-label="Read" />;
+      return <CheckCheck size={14} className="text-white" aria-label="Read" />;
     case 'delivered':
-      return <CheckCheck size={14} className="opacity-80" aria-label="Delivered" />;
+      return <CheckCheck size={14} className="opacity-55" aria-label="Delivered" />;
     default:
       return <Check size={13} className="opacity-70" aria-label="Sent" />;
   }
@@ -165,7 +165,7 @@ function ReceiptPopover({
       ? [{ label: 'Delivered', at: message.deliveredAt }]
       : []),
     ...(message.readAt !== undefined
-      ? [{ label: 'Read', at: message.readAt, tint: 'text-cyan-300' }]
+      ? [{ label: 'Read', at: message.readAt, tint: 'text-accent' }]
       : []),
   ];
 
@@ -177,17 +177,19 @@ function ReceiptPopover({
       role="dialog"
       aria-label="Message info"
       style={{ right: pos.right, bottom: pos.bottom }}
-      className="glass animate-scale-in fixed z-[60] w-max min-w-[11rem] origin-bottom-right
+      className="panel animate-scale-in fixed z-[60] w-max min-w-[11rem] origin-bottom-right
                  rounded-md border border-hairline p-2.5 text-left shadow-lift"
     >
-      <p className="mb-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
+      <p className="mb-1.5 mono text-muted">
         Message info
       </p>
       <div className="space-y-1">
         {rows.map((row) => (
           <div key={row.label} className="flex items-baseline justify-between gap-4 text-xs">
             <span className={cn('text-secondary', row.tint)}>{row.label}</span>
-            <span className="tabular-nums text-text">{receiptTime(row.at)}</span>
+            <span className="figures text-[0.6875rem] text-text">
+              {receiptTime(row.at)}
+            </span>
           </div>
         ))}
         {/* Only when genuinely undelivered. A message read on a client that
@@ -579,13 +581,11 @@ export function Bubble({
                   'text-white',
                   isVisualMedia
                     ? ''
-                    : 'bg-gradient-to-b from-accent-solid to-accent-solid-deep shadow-glow',
+                    : 'bg-gradient-to-b from-accent-solid to-accent-solid-deep shadow-accent',
                 )
               : cn(
                   'text-text',
-                  isVisualMedia
-                    ? ''
-                    : 'border border-hairline bg-surface/65 backdrop-blur-md depth',
+                  isVisualMedia ? '' : 'sheen border border-hairline bg-surface depth',
                 ),
           )}
           style={{
@@ -666,7 +666,7 @@ export function Bubble({
           {(showMeta || isVisualMedia) && (
             <div
               className={cn(
-                'flex items-center justify-end gap-1 text-[0.6875rem]',
+                'figures flex items-center justify-end gap-1 text-[0.625rem]',
                 isVisualMedia
                   ? 'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2.5 pb-1.5 pt-6 text-white'
                   : cn('mt-1', mine ? 'text-white/70' : 'text-muted'),
@@ -727,7 +727,7 @@ export function Bubble({
 
             {showHistory && (
               <div className="max-w-full rounded-md border border-hairline bg-surface-raised p-2.5 text-xs shadow-soft">
-                <p className="mb-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
+                <p className="mb-0.5 mono text-muted">
                   Original
                 </p>
                 <p className="mb-2 whitespace-pre-wrap break-words text-secondary">
@@ -735,7 +735,7 @@ export function Bubble({
                     ? maskSpoilers(message.originalText)
                     : 'Original unavailable'}
                 </p>
-                <p className="mb-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted">
+                <p className="mb-0.5 mono text-muted">
                   Edited
                 </p>
                 <p className="whitespace-pre-wrap break-words text-text">

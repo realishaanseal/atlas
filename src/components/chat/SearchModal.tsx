@@ -118,7 +118,7 @@ export function SearchModal({
             </p>
           ) : (
             <>
-              <p className="px-3 py-1.5 text-[0.625rem] uppercase tracking-wide text-muted">
+              <p className="px-3 py-1.5 mono text-muted">
                 {results.length} {results.length === 1 ? 'result' : 'results'}
               </p>
               {results.map(({ message, before, match, after }) => (

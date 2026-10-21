@@ -69,7 +69,7 @@ export function MessageMenu({
       exit="exit"
       style={{ transformOrigin: mine ? 'bottom right' : 'bottom left' }}
       className={cn(
-        'glass absolute bottom-full z-40 mb-1 min-w-[10rem] overflow-hidden',
+        'panel absolute bottom-full z-40 mb-1 min-w-[10rem] overflow-hidden',
         'rounded-md border border-hairline py-1 depth-lg',
         mine ? 'right-0' : 'left-0',
       )}

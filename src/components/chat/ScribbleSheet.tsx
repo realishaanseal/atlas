@@ -291,7 +291,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
           aria-label="Done"
           className="press flex h-10 items-center gap-1.5 rounded-full bg-gradient-to-b
                      from-accent-solid to-accent-solid-deep px-4 text-sm font-medium text-white
-                     shadow-glow disabled:opacity-40 disabled:shadow-none"
+                     shadow-accent disabled:opacity-40 disabled:shadow-none"
         >
           <Check size={16} aria-hidden />
           Done
@@ -314,10 +314,10 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
         )}
       </div>
 
-      {/* Tools clustered in the bottom-left corner — a compact glass pill
+      {/* Tools clustered in the bottom-left corner — a compact pill
           rather than a bar spanning the window. */}
       <div className="absolute bottom-0 left-0 p-3 pb-safe">
-        <div className="glass relative flex items-center gap-1 rounded-2xl border border-hairline p-1.5 shadow-lift">
+        <div className="panel relative flex items-center gap-1 rounded-2xl border border-hairline p-1.5 shadow-lift">
           <button
             type="button"
             onClick={() => {
@@ -327,7 +327,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
             aria-pressed={tool === 'pen'}
             className={cn(
               'press flex size-9 items-center justify-center rounded-xl transition-colors',
-              tool === 'pen' ? 'bg-accent-solid text-white shadow-glow' : 'text-secondary hover:text-text',
+              tool === 'pen' ? 'bg-accent-solid text-white shadow-accent' : 'text-secondary hover:text-text',
             )}
           >
             <Pen size={16} aria-hidden />
@@ -341,7 +341,7 @@ export function ScribbleSheet({ onDone, onClose }: ScribbleSheetProps) {
             aria-pressed={tool === 'brush'}
             className={cn(
               'press flex size-9 items-center justify-center rounded-xl transition-colors',
-              tool === 'brush' ? 'bg-accent-solid text-white shadow-glow' : 'text-secondary hover:text-text',
+              tool === 'brush' ? 'bg-accent-solid text-white shadow-accent' : 'text-secondary hover:text-text',
             )}
           >
             <Brush size={16} aria-hidden />
@@ -556,7 +556,7 @@ function ColorWheel({
   return (
     <div
       ref={rootRef}
-      className="glass animate-scale-in absolute bottom-full left-0 mb-3 flex flex-col items-center
+      className="panel animate-scale-in absolute bottom-full left-0 mb-3 flex flex-col items-center
                  gap-2 rounded-2xl border border-hairline p-3 shadow-lift"
     >
       <div className="relative" style={{ width: WHEEL, height: WHEEL }}>

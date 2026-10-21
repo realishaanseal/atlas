@@ -4,7 +4,7 @@
  *
  * Never shipped: main.tsx only imports this behind `import.meta.env.DEV` and a
  * `?preview` query flag, so the production build dead-code-eliminates the whole
- * branch and this chunk is never emitted (verify:bundle confirms it).
+ * branch and this chunk is never emitted.
  *
  * `/?preview`         interactive — real components, real motion
  * `/?preview&still`   a static "still life" of the material treatments, for
@@ -34,8 +34,8 @@ function Bubble({ mine, children }: { mine: boolean; children: string }) {
         className={cn(
           'max-w-[70%] rounded-lg px-4 py-2.5 text-[0.9375rem] leading-relaxed',
           mine
-            ? 'rounded-br-xs bg-gradient-to-b from-accent-solid to-accent-solid-deep text-white shadow-glow'
-            : 'rounded-bl-xs border border-hairline bg-surface/80 text-text backdrop-blur-md depth',
+            ? 'rounded-br-xs bg-gradient-to-b from-accent-solid to-accent-solid-deep text-white shadow-accent'
+            : 'sheen rounded-bl-xs border border-hairline bg-surface text-text depth',
         )}
       >
         {children}
@@ -51,13 +51,13 @@ function StillLife() {
       <section className="space-y-2">
         <p className="text-xs uppercase tracking-wide text-muted">Message bubbles</p>
         <Bubble mine={false}>Hey — did the new build go out?</Bubble>
-        <Bubble mine>Just pushed it. Grain, springs, layered glass, the lot.</Bubble>
-        <Bubble mine={false}>The panels feel like actual glass now. Nice.</Bubble>
+        <Bubble mine>Just pushed it. Flat ink, embossed surfaces, mono labels.</Bubble>
+        <Bubble mine={false}>The panels feel like real material now. Nice.</Bubble>
       </section>
 
       <section className="space-y-2">
         <p className="text-xs uppercase tracking-wide text-muted">Menu panel</p>
-        <div className="glass w-60 overflow-hidden rounded-md border border-hairline shadow-raised">
+        <div className="panel w-60 overflow-hidden rounded-md border border-hairline shadow-raised">
           {[
             { icon: Sparkles, label: 'Custom emoji' },
             { icon: Palette, label: 'Theme' },
@@ -116,7 +116,7 @@ function StillLife() {
           <span className="rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-text depth">
             Secondary
           </span>
-          <span className="rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-glow">
+          <span className="rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-accent">
             Primary
           </span>
         </div>
@@ -158,8 +158,8 @@ function Interactive() {
 
       <div className="mx-auto flex w-full max-w-[850px] flex-1 flex-col gap-2 overflow-y-auto px-4 py-6">
         <Bubble mine={false}>Hey — did the new build go out?</Bubble>
-        <Bubble mine>Just pushed it. Grain, springs, the lot.</Bubble>
-        <Bubble mine={false}>The panels feel like actual glass now.</Bubble>
+        <Bubble mine>Just pushed it. Flat ink, embossed surfaces.</Bubble>
+        <Bubble mine={false}>The panels feel like real material now.</Bubble>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <button type="button" onClick={() => { setNotif(true); }} className="press rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-text depth">
@@ -168,7 +168,7 @@ function Interactive() {
           <button type="button" onClick={() => { setSheet(true); }} className="press rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-text depth">
             Bottom sheet
           </button>
-          <button type="button" onClick={() => { setModal(true); }} className="press rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-glow">
+          <button type="button" onClick={() => { setModal(true); }} className="press rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-accent">
             Plain Overlay
           </button>
         </div>
@@ -205,7 +205,7 @@ function Interactive() {
           <p className="mt-1 text-sm text-secondary">
             Scales out of the surface, backdrop blurs in behind it.
           </p>
-          <button type="button" onClick={() => { setModal(false); }} className="press mt-4 rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-glow">
+          <button type="button" onClick={() => { setModal(false); }} className="press mt-4 rounded-md bg-gradient-to-b from-accent-solid to-accent-solid-deep px-3 py-2 text-sm font-medium text-white shadow-accent">
             Done
           </button>
         </div>

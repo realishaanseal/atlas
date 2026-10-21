@@ -9,7 +9,7 @@
  * at 50% lightness is far brighter than blue at 50%.
  *
  * The app stays a dark theme regardless. A custom theme shifts the accent and
- * the ambient glow to match an image; it never tries to recolour the dark base
+ * its solid stops to match an image; it never tries to recolour the dark base
  * or the light text, which is what keeps any image producing a usable result.
  *
  * Themes are LOCAL to a device — a preset id or a single hex colour in
@@ -56,15 +56,17 @@ export function rgbToOklch(r: number, g: number, b: number): Oklch {
 export type ThemeVars = Record<string, string>;
 
 /**
- * Builds the accent + glow palette for a hue/chroma.
+ * Builds the accent palette for a hue/chroma.
  *
  * Lightness values are fixed and tuned for the dark UI: the two "solid" stops
  * (behind white text on sent bubbles and buttons) sit low enough to clear
  * ~4.5:1 on white; the plain accent sits high for use on the dark background.
- * Chroma is clamped so an over-saturated image cannot produce a garish result.
+ * Chroma is capped low — about the saturation of the native steel blue — so
+ * every accent stays muted and grown-up, and a vivid photo cannot produce a
+ * neon result.
  */
 export function paletteFromOklch(hue: number, chroma: number): ThemeVars {
-  const c = Math.min(Math.max(chroma, 0.03), 0.17);
+  const c = Math.min(Math.max(chroma, 0.03), 0.1);
   const alt = (hue + 32) % 360;
   const ok = (l: number, ch: number, h: number) => `oklch(${l.toFixed(3)} ${ch.toFixed(3)} ${h.toFixed(1)})`;
 
@@ -78,8 +80,6 @@ export function paletteFromOklch(hue: number, chroma: number): ThemeVars {
     '--color-accent-solid-deep': ok(0.45, c, hue),
     '--color-accent-solid-hover': ok(0.56, c, hue),
     '--color-accent-alt': ok(0.62, c, alt),
-    '--glow-a': ok(0.56, c, hue),
-    '--glow-b': ok(0.58, c, alt),
   };
 }
 
@@ -114,7 +114,7 @@ export function backgroundVars(hex: string): ThemeVars {
     '--color-bg-deep': ok(0.08, tint),
     '--color-surface': ok(0.2, tint),
     '--color-surface-raised': ok(0.26, tint),
-    '--color-surface-glass': ok(0.22, tint),
+    '--color-surface-panel': ok(0.22, tint),
     '--color-border': ok(0.32, tint * 1.3),
     '--color-border-strong': ok(0.42, tint * 1.3),
   };
@@ -136,7 +136,7 @@ export function applyBackgroundVars(hex: string | null): void {
 /**
  * Sets or clears a wallpaper image behind the chat.
  *
- * Applied to the body — the same backdrop layer the ambient glow uses — so it
+ * Applied to the body — the same layer as the plain ink ground — so it
  * shows through the gaps between the (opaque-enough) bubbles without any new
  * stacking context. A dark scrim is layered over it so the messages and text
  * stay readable over any photo, however bright. Local only; the data URL never
@@ -167,7 +167,7 @@ export interface BackgroundPreset {
 }
 
 export const BACKGROUND_PRESETS: readonly BackgroundPreset[] = [
-  { id: 'default', name: 'Default', hex: null, swatch: '#0b1020' },
+  { id: 'default', name: 'Default', hex: null, swatch: '#0b1118' },
   { id: 'ink', name: 'Ink', hex: '#000000', swatch: '#050505' },
   { id: 'midnight', name: 'Midnight', hex: '#12244d', swatch: 'oklch(0.16 0.045 260)' },
   { id: 'forest', name: 'Forest', hex: '#12402a', swatch: 'oklch(0.16 0.045 158)' },
@@ -187,14 +187,19 @@ export interface ThemePreset {
   readonly swatch: string;
 }
 
+/**
+ * A short, muted set, each at roughly the native steel blue's saturation. The
+ * swatch is the solid stop (L 0.52), which is what a sent bubble shows. A
+ * stored id that is no longer listed falls back to the native palette.
+ */
 export const THEME_PRESETS: readonly ThemePreset[] = [
-  { id: 'default', name: 'Ocean', hue: null, chroma: 0.15, swatch: '#2f6fe0' },
-  { id: 'violet', name: 'Violet', hue: 300, chroma: 0.15, swatch: 'oklch(0.54 0.15 300)' },
-  { id: 'emerald', name: 'Emerald', hue: 158, chroma: 0.14, swatch: 'oklch(0.54 0.14 158)' },
-  { id: 'rose', name: 'Rose', hue: 12, chroma: 0.15, swatch: 'oklch(0.54 0.15 12)' },
-  { id: 'amber', name: 'Amber', hue: 70, chroma: 0.13, swatch: 'oklch(0.6 0.13 70)' },
-  { id: 'teal', name: 'Teal', hue: 195, chroma: 0.12, swatch: 'oklch(0.54 0.12 195)' },
-  { id: 'slate', name: 'Slate', hue: 260, chroma: 0.03, swatch: 'oklch(0.55 0.03 260)' },
+  { id: 'default', name: 'Steel', hue: null, chroma: 0.1, swatch: '#2f6197' },
+  { id: 'sage', name: 'Sage', hue: 160, chroma: 0.075, swatch: 'oklch(0.52 0.075 160)' },
+  { id: 'teal', name: 'Teal', hue: 200, chroma: 0.08, swatch: 'oklch(0.52 0.08 200)' },
+  { id: 'clay', name: 'Clay', hue: 40, chroma: 0.09, swatch: 'oklch(0.52 0.09 40)' },
+  { id: 'rose', name: 'Rose', hue: 10, chroma: 0.085, swatch: 'oklch(0.52 0.085 10)' },
+  { id: 'ochre', name: 'Ochre', hue: 75, chroma: 0.085, swatch: 'oklch(0.52 0.085 75)' },
+  { id: 'slate', name: 'Slate', hue: 250, chroma: 0.03, swatch: 'oklch(0.52 0.03 250)' },
 ];
 
 // --- image extraction ------------------------------------------------------

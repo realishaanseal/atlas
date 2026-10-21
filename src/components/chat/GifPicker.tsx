@@ -215,12 +215,8 @@ export function GifPicker({ onPick, onPickFile, onClose }: GifPickerProps) {
       ref={rootRef}
       role="dialog"
       aria-label="Search GIFs"
-      // Near-opaque rather than the usual glass: this panel is full of imagery
-      // and sits over message bubbles, and at normal glass opacity the bubbles
-      // read through it as ghosting.
-      className="animate-scale-in absolute bottom-[calc(100%+0.75rem)] right-0 z-30 w-[min(26rem,86vw)]
-                 overflow-hidden rounded-md border border-hairline bg-surface/97 shadow-raised
-                 backdrop-blur-xl"
+      className="panel animate-scale-in absolute bottom-[calc(100%+0.75rem)] right-0 z-30
+                 w-[min(26rem,86vw)] overflow-hidden rounded-md border border-hairline depth-lg"
     >
       <div className="flex items-center gap-2 border-b border-hairline p-2">
         <div className="relative flex-1">

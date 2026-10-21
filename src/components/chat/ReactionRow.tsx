@@ -73,8 +73,8 @@ export function ReactionRow({ reactions, mySlot, mine, onToggle }: ReactionRowPr
           "the reactions on this message", and it stops a row of them sprawling
           across the width of the bubble.
 
-          Solid rather than glass: this sits over a bubble edge, and a
-          translucent surface against a gradient reads as a smudge. */}
+          Solid: this sits over a bubble edge, and a translucent surface
+          against a coloured bubble reads as a smudge. */}
       <div
         className={cn(
           'flex max-w-[17rem] flex-wrap items-center gap-1 rounded-2xl border border-hairline',
@@ -233,7 +233,7 @@ export function ReactionPicker({
       transition={springs.overshoot}
       style={{ transformOrigin: mine ? 'bottom right' : 'bottom left' }}
       className={cn(
-        'glass absolute bottom-full z-30 mb-1 flex items-center',
+        'panel absolute bottom-full z-30 mb-1 flex items-center',
         // Tighter on phones. The full strip is ten controls wide, which
         // overflowed a 412px screen and had to be scrolled sideways to reach
         // the custom emoji — so on small screens it shows fewer, smaller ones

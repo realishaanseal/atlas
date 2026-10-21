@@ -131,7 +131,7 @@ export function EmojiManager({ open, onClose }: { open: boolean; onClose: () => 
               onClick={() => void submit()}
               className="press flex h-9 shrink-0 items-center gap-1.5 rounded-sm bg-gradient-to-b
                          from-accent-solid to-accent-solid-deep px-3 text-sm text-white
-                         shadow-glow disabled:opacity-40 disabled:shadow-none"
+                         shadow-accent disabled:opacity-40 disabled:shadow-none"
             >
               {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}
               Add
