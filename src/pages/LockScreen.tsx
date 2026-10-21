@@ -12,17 +12,11 @@ interface LockScreenProps {
   onSubmit: (passphrase: string) => void | Promise<void>;
 }
 
-/**
- * Wording lives here rather than in the session hook.
- *
- * The hook is eagerly loaded and its strings ship to every visitor of the
- * public site; this screen is lazy and only ever reached deliberately, so it is
- * free to say "passphrase" out loud.
- */
+/** The session hook reports failures as codes; this is where they get words. */
 function describe(reason: SessionReason): string {
   switch (reason.kind) {
-    case 'bad-code':
-      return 'Incorrect passphrase.';
+    case 'bad-passphrase':
+      return 'Incorrect password.';
     case 'rate-limited':
       return reason.seconds > 0
         ? `Too many attempts. Wait ${String(reason.seconds)}s.`
@@ -35,13 +29,10 @@ function describe(reason: SessionReason): string {
 }
 
 /**
- * The passphrase screen.
+ * The lock screen.
  *
- * No longer the front door — the public site is, and its access-code field
- * handles every ordinary unlock. This screen survives for the one case that
- * field deliberately refuses to serve: establishing a passphrase when none
- * exists, which happens exactly once at first run and again after a rotation.
- * It lives at the unlisted route in cover/CoverSite.tsx and 404s otherwise.
+ * Two forms in one: establishing a passphrase when none exists — once at first
+ * run, and again after a rotation — and unlocking with it every time after.
  *
  * Nothing here suggests a messenger. No logo, no product copy, no hint in the
  * tab title. Someone glancing over your shoulder sees a workspace login.
@@ -176,7 +167,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
 
             <h1 className="text-[1.5rem] font-semibold tracking-[-0.03em]">{APP_NAME}</h1>
             <p className="mt-1.5 text-sm text-secondary">
-              {isSetup ? 'Set the admin passphrase' : 'Restore access'}
+              {isSetup ? 'Choose a password to begin' : 'Private workspace'}
             </p>
           </header>
 
@@ -306,9 +297,9 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
                   {status === 'working' ? 'Unlocking' : 'Loading'}
                 </>
               ) : isSetup ? (
-                'Set code'
+                'Set password'
               ) : (
-                'Continue'
+                'Unlock'
               )}
             </Button>
 
@@ -332,7 +323,7 @@ export default function LockScreen({ status, reason, onSubmit }: LockScreenProps
 
         {isSetup && (
           <p className="mt-5 text-center text-xs leading-relaxed text-muted">
-            This code encrypts everything and is never stored or sent anywhere. If you lose it,
+            This password encrypts everything and is never stored or sent anywhere. If you lose it,
             nothing behind it can be recovered.
           </p>
         )}

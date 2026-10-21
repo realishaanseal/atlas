@@ -10,7 +10,7 @@ const FORCE_REDUCED =
   new URLSearchParams(window.location.search).has('reduce');
 
 /**
- * Wraps everything behind the access code in motion's context.
+ * Wraps everything behind the lock screen in motion's context.
  *
  * `LazyMotion` + the `m` component (instead of `motion`) is what keeps the
  * animation runtime small: `strict` makes the bundler — and code review —

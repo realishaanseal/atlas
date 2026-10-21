@@ -36,11 +36,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
 
     return (
-      // Colours here are literals rather than theme tokens, and the reason is
-      // that this boundary can fire on either surface: the light public site or
-      // the dark conversation. An accent token would be invisible on one of
-      // them, and a blank screen with an unreadable button is worse than the
-      // error it is reporting. Slate-500 and emerald clear 4.5:1 on both.
+      // Colours here are literals rather than theme tokens: this boundary sits
+      // above the theme provider, so a token could resolve to anything — and a
+      // blank screen with an unreadable button is worse than the error it is
+      // reporting. Slate-500 and emerald clear 4.5:1 on light and dark alike.
       <main className="flex min-h-dvh items-center justify-center px-6 text-center">
         <div className="animate-rise">
           <p className="text-sm text-slate-500">Something went wrong.</p>

@@ -98,17 +98,13 @@ export function useUnreadNotifications(
         const notification = new Notification(APP_NAME, {
           // A desktop notification is drawn by the operating system, outside
           // anything this app controls, and it can appear on a locked screen or
-          // over a shared display. A preview of the message there would undo
-          // the concealment in the one place it cannot be undone — and a
-          // notification titled after a notes site whose body is a line of
-          // conversation is more conspicuous than no notification at all.
-          //
-          // Set NOTIFICATIONS.SHOW_PREVIEW to true if you would rather have the
-          // text and accept that.
-          body: NOTIFICATIONS.SHOW_PREVIEW ? preview(message) : 'Your library was updated.',
+          // over a shared display — so by default it says that something
+          // arrived, not what. Set NOTIFICATIONS.SHOW_PREVIEW to true if you
+          // would rather have the text and accept that.
+          body: NOTIFICATIONS.SHOW_PREVIEW ? preview(message) : 'New message',
           // Same tag for all of them: a new message replaces the previous
           // notification rather than stacking twenty of them.
-          tag: 'library-update',
+          tag: 'atlas-message',
           // The Web Audio ting is the sound, gated by the user's own setting —
           // so the OS notification itself stays silent to avoid a double chime.
           silent: true,

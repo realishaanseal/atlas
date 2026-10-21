@@ -70,12 +70,9 @@ export function icsFile({ title, at, hasTime }: CalendarEvent): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    // Both of these end up inside the .ics file, which lands in Downloads and
-    // is then imported into a calendar app that may well be shared or synced.
-    // Named after the public site for the same reason the export filename is.
-    'PRODID:-//MechCodes//EN',
+    'PRODID:-//Atlas//EN',
     'BEGIN:VEVENT',
-    `UID:${String(at)}-${Math.random().toString(36).slice(2)}@mechcodes`,
+    `UID:${String(at)}-${Math.random().toString(36).slice(2)}@atlas`,
     `DTSTAMP:${stampUtc(Date.now())}`,
     start,
     end,

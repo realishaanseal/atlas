@@ -366,10 +366,6 @@ function buildHtml(snapshot: ArchiveSnapshot, options: ExportOptions): string {
   });
 
   const count = snapshot.messages.length;
-  // The exported file goes to the Downloads folder, where its name and its tab
-  // title are visible to anyone who opens the folder — which is a wider
-  // audience than the app itself ever has. Named after the public site for
-  // that reason; the peer's name stays inside the document.
   const title = `${APP_NAME} archive — ${options.peerName}`;
 
   return `<!doctype html>
@@ -457,7 +453,7 @@ export function downloadHtmlExport(snapshot: ArchiveSnapshot, options: ExportOpt
   const stamp = new Date().toISOString().slice(0, 10);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `mechcodes-archive-${stamp}.html`;
+  anchor.download = `atlas-archive-${stamp}.html`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

@@ -12,13 +12,11 @@ interface ChatRootProps {
 }
 
 /**
- * Everything behind the code, in one lazily loaded module.
+ * Everything behind the lock screen, in one lazily loaded module.
  *
- * This exists purely so that the conversation, the theme engine, the emoji
- * pack and — through them — `@/config` and the crypto layer all land in a
- * chunk that is never fetched until a valid code has been entered. A visitor
- * who never unlocks downloads none of it, so there is nothing in the network
- * tab or the parsed bundle to suggest the site is anything but a notes site.
+ * The conversation, the theme engine, the emoji pack and the animation runtime
+ * all land in a chunk that is never fetched until a passphrase has been
+ * accepted, which keeps the lock screen's critical path small.
  *
  * The theme provider in particular used to sit in `main.tsx`, which put the
  * palette engine and an IndexedDB open on the critical path of every page

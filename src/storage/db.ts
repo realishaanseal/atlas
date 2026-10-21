@@ -10,17 +10,14 @@
  */
 
 /**
- * Database names are listed in the browser's developer tools under the origin,
- * next to the site's own name, so this one matches the public site.
- *
- * `LEGACY_NAMES` lists the names this store has used before. Preferences
- * live here — theme, favourite emoji, saved GIFs and their bytes — and losing
- * them silently on an update would be a worse outcome than the tell, so the
- * contents are carried across once and the old database is then removed.
+ * `LEGACY_NAMES` lists the names this store has used before. Preferences and
+ * the device's pairing id live here — theme, favourite emoji, saved GIFs and
+ * their bytes — and losing them silently on an update would unpair the device,
+ * so the contents are carried across once and the old database is then removed.
  */
-const DB_NAME = 'mechcodes';
+const DB_NAME = 'atlas';
 /** Every name this store has previously used, newest first. */
-const LEGACY_NAMES = ['notewell', 'atlas'] as const;
+const LEGACY_NAMES = ['mechcodes', 'notewell'] as const;
 const DB_VERSION = 1;
 const STORE = 'kv';
 
