@@ -86,7 +86,7 @@ const WORDS = [
 /**
  * Six words from a 40-word list ≈ 32 bits of entropy, which is not enough on
  * its own — so we append a random 4-digit number, bringing it to ~45 bits.
- * Combined with 900k PBKDF2 iterations that is a serious offline cost.
+ * Combined with 2,000,000 PBKDF2 iterations that is a serious offline cost.
  */
 export function generatePassphrase(): string {
   const picks = Array.from(crypto.getRandomValues(new Uint32Array(6)), (n) => WORDS[n % WORDS.length]);

@@ -32,6 +32,10 @@ you.
   anyone with database access.
 - **A hostile peer.** The other person can screenshot, record, or simply
   remember anything you send. This is true of every messenger.
+- **Someone with the archiving device.** One side keeps a local archive of the
+  decrypted conversation in IndexedDB, deliberately unencrypted so it stays
+  readable after the server copy expires. It is on by default and can be paused
+  under *Chat archive*; anyone who can use that browser can read it.
 - **Malicious modification of your own deployment.** If someone can change the
   JavaScript you serve, they can exfiltrate your key. Deploy from a machine you
   control.

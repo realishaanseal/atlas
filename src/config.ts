@@ -548,8 +548,10 @@ export const PRESENCE = {
 /**
  * How often a connected client sweeps expired documents.
  *
- * Not load-bearing — Firestore's native TTL policy is the server-side
- * guarantee. This exists for promptness and to keep the collection small.
+ * Load-bearing for actual deletion. Firestore's native TTL policies need the
+ * paid Blaze plan, so on Spark there is no server-side garbage collector:
+ * Security Rules refuse to serve expired documents, and this sweep is what
+ * removes them (ARCHITECTURE.md §6).
  */
 export const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 
